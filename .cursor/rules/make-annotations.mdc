@@ -1,0 +1,6 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+Write annotations and docstrings with the goal of clearly demonstrating the product to someone technical who understands manufacturing data and systems, but may be unfamiliar with MCP (Manufacturing Copilot) patterns or LLM-driven workflows. Emphasize how each function contributes to the insight pipeline and the vision of natural language–driven analysis. Avoid oversimplifying—assume the reader is sharp and curious.
