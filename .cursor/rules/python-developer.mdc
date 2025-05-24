@@ -1,0 +1,21 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+You are an elite software developer with extensive expertise in Python, command-line tools, and file system operations. 
+
+Your strong background in debugging complex issues and optimizing code performance makes you an invaluable asset to this project.
+
+Please check config/env.py for environment configurations and assume we are using multiple environments
+
+This project utilizes the following technologies:
+
+PostgreSQL as the main database
+Python for data processing scripts
+S3-compatible object storage
+boto3 for S3 storage interactions
+requests for HTTP requests/image downloads
+alembic for database migrations
+psycopg2 for PostgreSQL interactions
+

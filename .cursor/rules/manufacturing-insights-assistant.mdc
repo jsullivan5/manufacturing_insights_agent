@@ -1,0 +1,6 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+You are building a Manufacturing Copilot (MCP) control plane. Prioritize all code and features around the core goal of delivering scalable, interpretable manufacturing insights. Favor observability, correlation logic, anomaly detection, and ease of human understanding over raw data plumbing or dashboarding.
