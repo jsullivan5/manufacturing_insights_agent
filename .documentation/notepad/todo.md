@@ -27,28 +27,42 @@
 - ✅ **Intelligent fallbacks** for ambiguous queries
 - ✅ **CLI integration** with default interpreter mode and legacy option
 
+### Phase 5: Advanced Analytics Tools ✅
+- ✅ **`detect_spike()` function** with z-score based anomaly detection
+  - Rolling window statistics for local anomaly detection
+  - Configurable threshold and window size parameters
+  - Comprehensive anomaly classification (high/low, extreme/normal)
+  - Statistical significance testing
+- ✅ **`correlate_tags()` function** with multi-type correlation analysis
+  - Pearson correlation for linear relationships
+  - Change correlation for rate-of-change relationships
+  - Time-lagged correlation for leading/lagging indicators
+  - Statistical significance and strength interpretation
+- ✅ **`generate_chart()` function** with professional visualization
+  - Time series plots with trend lines and statistical bands
+  - Anomaly period highlighting with annotations
+  - Data quality indicators (Good/Questionable/Bad)
+  - Professional styling and automatic time axis formatting
+- ✅ **`generate_correlation_chart()` function** for dual-axis correlation plots
+- ✅ **Comprehensive testing** with both real and synthetic data
+- ✅ **Modular architecture** with isolated testing via `__main__` blocks
+
 ## 🔄 IN PROGRESS
 
-### Advanced Analytics Tools
-Working on implementing the remaining tool functions for comprehensive analysis:
+### LLM Reasoning Integration
+Working on integrating the completed tools into an intelligent analysis pipeline:
 
-1. ⬜ `detect_spike(df: pd.DataFrame, threshold: float = 3.0)`
-   - Inputs: `df` (time-series DataFrame), `threshold` (z-score threshold for anomaly detection)
-   - Processing: Calculate rolling statistics and identify data points exceeding threshold
-   - Output: Return list of `(timestamp, value, z_score)` tuples for anomalous points
-   - Testing: Verify detection of injected anomalies in synthetic data
+1. ⬜ **Enhanced Interpreter Integration**
+   - Integrate anomaly detection into `interpret_query()`
+   - Add correlation analysis for multi-tag insights
+   - Include chart generation in query responses
+   - Provide actionable recommendations
 
-2. ⬜ `correlate_tags(primary_df: pd.DataFrame, candidate_dfs: List[pd.DataFrame], window: Tuple[datetime, datetime])`
-   - Inputs: `primary_df` (main metric DataFrame), `candidate_dfs` (list of related metric DataFrames), `window` (time range tuple)
-   - Processing: Calculate correlation coefficients or aligned deltas between primary and candidate metrics within the spike window
-   - Output: Return ranked list of `(tag_name, correlation_score)` indicating relevance to the primary anomaly
-   - Testing: Confirm correlations reflect known relationships in synthetic data
-
-3. ⬜ `generate_chart(df: pd.DataFrame, tag: str, highlights: Optional[List[Tuple[datetime, datetime]]] = None)`
-   - Inputs: `df` (time-series DataFrame), `tag` (metric name string), `highlights` (optional list of anomaly time windows)
-   - Processing: Plot time series data as PNG chart; annotate or highlight anomaly periods if provided
-   - Output: Save chart PNG file and return filepath string
-   - Testing: Visual inspection to ensure data and highlights are correctly rendered
+2. ⬜ **LLM Reasoning Layer**
+   - Natural language explanations of anomalies
+   - Root cause analysis suggestions
+   - Operational recommendations based on patterns
+   - Context-aware insight generation
 
 ## 📋 CURRENT CAPABILITIES
 
