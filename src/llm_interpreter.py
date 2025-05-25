@@ -18,7 +18,7 @@ import os
 import sys
 import json
 from datetime import datetime, timedelta
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Tuple
 
 # Add the project root to the Python path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -119,7 +119,7 @@ def parse_query_with_llm(query: str) -> AnalysisPlan:
     
     You MUST respond with a valid JSON object in this exact format:
     {{
-        "primary_tag": "most relevant tag name from available tags",
+        "primary_tag": "most relevant tag name from available tags OR 'NO_RELEVANT_TAG'",
         "start_time": "YYYY-MM-DD HH:MM:SS",
         "end_time": "YYYY-MM-DD HH:MM:SS", 
         "analysis_steps": ["basic_statistics", "generate_chart"],
@@ -128,8 +128,9 @@ def parse_query_with_llm(query: str) -> AnalysisPlan:
     }}
     
     GUIDELINES:
-    - ALWAYS choose one of the available tags, even if not perfectly relevant
-    - If no tag is clearly relevant, choose the closest match and explain in reasoning
+    - If the query asks for a tag that clearly doesn't exist in the available tags, set primary_tag to "NO_RELEVANT_TAG"
+    - Only choose from the available tags if there's a reasonable match
+    - If no tag is clearly relevant, use "NO_RELEVANT_TAG" and explain in reasoning
     - Parse time references intelligently (yesterday, last week, etc.)
     - If no time reference is given, use the last 24 hours
     - Select appropriate analysis tools based on what the user is asking
@@ -139,8 +140,7 @@ def parse_query_with_llm(query: str) -> AnalysisPlan:
     - Always include basic_statistics as foundation
     - Provide expert reasoning for your choices
     
-    CRITICAL: You must ALWAYS return valid JSON. Never refuse or explain why you can't help.
-    Choose the best available tag and explain your reasoning in the "reasoning" field.
+    CRITICAL: You must ALWAYS return valid JSON. If no relevant tag exists, use "NO_RELEVANT_TAG".
     """
     
     try:
@@ -440,6 +440,65 @@ def generate_expert_insights(query: str, context: Dict[str, Any]) -> str:
         return f"❌ **Error generating insights**: {e}"
 
 
+def validate_analysis_plan(plan: AnalysisPlan) -> Tuple[bool, str]:
+    """
+    Validate the LLM-generated analysis plan for correctness.
+    
+    Ensures the plan references valid tags and has a sensible time range
+    before proceeding with expensive data loading and analysis operations.
+    
+    Args:
+        plan: LLM-generated analysis plan to validate
+        
+    Returns:
+        Tuple of (can_continue, error_reason)
+        - can_continue: True if plan is valid, False if invalid
+        - error_reason: Empty string if valid, descriptive error if invalid
+    """
+    logger.debug(f"Validating analysis plan for tag: {plan.primary_tag}")
+    
+    # Check if the primary tag exists in available tags
+    if plan.primary_tag == "NO_RELEVANT_TAG":
+        try:
+            available_tags = get_available_tags()
+            return False, f"No relevant tag found for your query. Available tags are: {', '.join(available_tags)}. Please try asking about one of these manufacturing metrics."
+        except Exception:
+            return False, "No relevant tag found for your query. Please try asking about freezer temperature, compressor power, door status, or other manufacturing metrics."
+    
+    try:
+        available_tags = get_available_tags()
+        if plan.primary_tag not in available_tags:
+            return False, f"Unknown tag '{plan.primary_tag}'. Available tags: {', '.join(available_tags)}"
+    except Exception as e:
+        logger.warning(f"Could not get available tags for validation: {e}")
+        # If we can't get available tags, we'll let the data loading step handle the error
+        pass
+    
+    # Check if time range is valid
+    if plan.start_time >= plan.end_time:
+        return False, f"Invalid time range: start time ({plan.start_time}) must be before end time ({plan.end_time})"
+    
+    # Check if time range is reasonable (not too far in the past or future)
+    now = datetime.now()
+    max_past = now - timedelta(days=365)  # 1 year ago
+    max_future = now + timedelta(days=1)  # 1 day in future
+    
+    if plan.end_time < max_past:
+        return False, f"Time range too far in the past: {plan.end_time} (data may not be available)"
+    
+    if plan.start_time > max_future:
+        return False, f"Time range in the future: {plan.start_time} (no data available yet)"
+    
+    # Check if analysis steps are valid
+    valid_steps = ["basic_statistics", "detect_anomalies", "correlate_tags", "generate_chart"]
+    invalid_steps = [step for step in plan.analysis_steps if step not in valid_steps]
+    if invalid_steps:
+        return False, f"Invalid analysis steps: {', '.join(invalid_steps)}. Valid steps: {', '.join(valid_steps)}"
+    
+    logger.debug("Analysis plan validation passed")
+    return True, ""
+
+
 def llm_interpret_query(query: str) -> str:
     """
     Main LLM-powered query interpretation function.
@@ -462,10 +521,16 @@ def llm_interpret_query(query: str) -> str:
         plan = parse_query_with_llm(query)
         logger.info(f"📋 Analysis plan: {plan.reasoning}")
         
-        # Step 2: Execute the analysis plan
+        # Step 2: Validate the analysis plan
+        can_continue, error_reason = validate_analysis_plan(plan)
+        if not can_continue:
+            logger.error(f"Analysis plan validation failed: {error_reason}")
+            return f"❌ **Analysis Plan Validation Failed**: {error_reason}"
+        
+        # Step 3: Execute the analysis plan
         context = execute_analysis_plan(plan)
         
-        # Step 3: Generate expert insights
+        # Step 4: Generate expert insights
         insights = generate_expert_insights(query, context)
         
         logger.info("✅ LLM-powered analysis completed successfully")
