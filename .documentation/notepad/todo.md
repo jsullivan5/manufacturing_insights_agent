@@ -96,13 +96,104 @@ OPENAI_API_KEY=your_openai_api_key_here
 
 ---
 
+
 ## 4. Tool Functions
 
-- `load_data(tag, start, end)`: Read CSV, filter by tag + time
-- `summarize_metric(df)`: mean, std, min, max, trend
-- `detect_spike(df)`: simple z-score or delta threshold
-- `correlate_tags(primary_tag, others, window)`: rank tag deltas
-- `generate_chart(df, tag)`: matplotlib line plot to PNG
+### Tool Functions – Implementation Checklist
+
+Implement each function below in `src/tools/`, testing functionality as you go. These tools are modular and will compose the core logic of the MCP.
+
+1. ✅ **`load_data(tag: str, start: datetime, end: datetime)`** ✅ COMPLETED
+   - Load time-series data from the CSV ✅
+   - Filter by tag name and time range ✅
+   - Autodetect available tags and raise a helpful error if not found ✅
+   - **Tested**: Successfully loads data with proper error handling and validation
+
+2. ✅ **`summarize_metric(df: pd.DataFrame)`** ✅ BASIC VERSION COMPLETE
+   - Compute mean, min, max, std, and overall trend ✅
+   - Add optional day vs night delta or variance by shift ⬜ (future enhancement)
+
+3. ⬜ `detect_spike(df: pd.DataFrame, z_threshold: float = 2.5)`
+   - Inputs: `df` (pandas DataFrame with time-indexed metric data), `z_threshold` (float, default 2.5)
+   - Processing: Detect abnormal changes using z-score or rolling delta threshold on the metric values
+   - Output: Return a list of tuples `(start_time, end_time, reason)` indicating detected anomaly windows
+   - Testing: Validate detection accuracy on known anomaly periods in the synthetic dataset
+   - Visualization: Output anomaly windows should be highlightable on generated charts
+
+4. ⬜ `correlate_tags(primary_df: pd.DataFrame, candidate_dfs: List[pd.DataFrame], window: Tuple[datetime, datetime])`
+   - Inputs: `primary_df` (main metric DataFrame), `candidate_dfs` (list of related metric DataFrames), `window` (time range tuple)
+   - Processing: Calculate correlation coefficients or aligned deltas between primary and candidate metrics within the spike window
+   - Output: Return ranked list of `(tag_name, correlation_score)` indicating relevance to the primary anomaly
+   - Testing: Confirm correlations reflect known relationships in synthetic data
+
+5. ⬜ `generate_chart(df: pd.DataFrame, tag: str, highlights: Optional[List[Tuple[datetime, datetime]]] = None)`
+   - Inputs: `df` (time-series DataFrame), `tag` (metric name string), `highlights` (optional list of anomaly time windows)
+   - Processing: Plot time series data as PNG chart; annotate or highlight anomaly periods if provided
+   - Output: Save chart PNG file and return filepath string
+   - Testing: Visual inspection to ensure data and highlights are correctly rendered
+
+6. ⬜ `rollup_by_period(df: pd.DataFrame, duration: timedelta)`
+   - Inputs: `df` (time-series DataFrame), `duration` (timedelta object specifying resample period)
+   - Processing: Resample and aggregate data (e.g., mean, sum) to reduce granularity for visualization or analysis
+   - Output: Return resampled DataFrame appropriate for the selected time window (hours to weeks)
+   - Testing: Verify aggregation correctness and performance on large datasets
+
+7. ✅ **`quality_summary(df: pd.DataFrame)`** ✅ COMPLETED
+   - Compute % of "Good", "Questionable", and "Bad" quality values ✅
+   - Useful for troubleshooting sensor or data issues ✅
+
+8. ⬜ `smart_compare(tag: str, ref_window: Tuple[datetime, datetime], compare_window: Tuple[datetime, datetime])`
+   - Inputs: `tag` (metric name string), `ref_window` and `compare_window` (time window tuples)
+   - Processing: Compare metric statistics (mean, variance, trends) across two time windows to detect unusual usage or drift
+   - Output: Structured summary of differences highlighting significant deviations
+   - Testing: Validate on synthetic data with known changes between windows
+
+9. ⬜ `overlay_chart(tag1: str, tag2: str, spike_window: Tuple[datetime, datetime])`
+   - Inputs: `tag1`, `tag2` (metric names), `spike_window` (time range tuple)
+   - Processing: Generate dual-axis plot overlaying two metrics over the spike window to visualize cause/effect relationships
+   - Output: Save PNG chart file and return filepath
+   - Testing: Visual confirmation that overlay aligns and highlights correlations
+
+10. ⬜ `explain_change(primary_tag: str, spike_window: Tuple[datetime, datetime], related_tags: List[str])`
+    - Inputs: `primary_tag` (main metric), `spike_window` (time range), `related_tags` (list of correlated metric tags)
+    - Processing: Aggregate findings and pass context to GPT or similar LLM to generate a human-readable explanation of the anomaly
+    - Output: Return a markdown-formatted summary paragraph explaining the event and related metric behavior
+    - Testing: Review generated explanations for clarity, accuracy, and usefulness
+
+## ✅ **MCP CLI SCAFFOLD - COMPLETED!** 🎉
+
+### **What's Working:**
+- ✅ **CLI Entry Point**: `python src/mcp.py "natural language query"`
+- ✅ **Semantic Tag Search**: OpenAI embeddings + Chroma vector search
+- ✅ **Data Loading**: Robust CSV loading with validation and error handling
+- ✅ **Time Filtering**: `--hours` parameter for data window selection
+- ✅ **Statistical Analysis**: Mean, range, change, std dev computation
+- ✅ **Data Quality**: Good/Questionable/Bad percentage reporting
+- ✅ **Rich Output**: Emojis, formatting, and helpful next steps
+
+### **Demo Results:**
+```bash
+# Power consumption query
+python src/mcp.py "Show me compressor power consumption"
+→ FREEZER01.COMPRESSOR.POWER_KW (42.6% similarity)
+→ 1441 data points, Mean: 1.43 kW, Range: 0.50-9.91 kW
+
+# Temperature query  
+python src/mcp.py "What's the freezer temperature doing?" --hours 12
+→ FREEZER01.TEMP.INTERNAL_C (33.2% similarity)
+→ 721 data points, Mean: -17.06°C, Range: -18.73 to -13.08°C
+```
+
+### **Architecture:**
+```
+src/mcp.py              # Main CLI entry point
+src/glossary.py         # Semantic tag search (OpenAI + Chroma)
+src/tools/              # Modular analysis functions
+  ├── data_loader.py    # CSV loading and filtering
+  ├── metrics.py        # Statistical summarization
+  ├── quality.py        # Data quality analysis  
+  └── [future modules]  # Anomaly detection, visualization, etc.
+```
 
 ---
 
@@ -149,14 +240,19 @@ OPENAI_API_KEY=your_openai_api_key_here
 - [x] Build tag glossary with semantic search
 - [x] Implement OpenAI embeddings integration
 - [x] Create natural language to PI tag translation
-- [ ] Build CLI parser
-- [ ] Build `summarize_data` and `detect_spike`
-- [ ] Create chart renderer
-- [ ] Add LLM reasoning layer
-- [ ] Assemble full pipeline
-- [ ] Demo against real use case
+- [x] Build CLI parser and main entry point
+- [x] Implement core data loading and metrics tools
+- [x] Test end-to-end query processing
+- [ ] Build anomaly detection (`detect_spike`)
+- [ ] Add correlation analysis between tags
+- [ ] Create chart generation and visualization
+- [ ] Add LLM reasoning layer for insights
+- [ ] Assemble full pipeline with anomaly→correlation→LLM flow
+- [ ] Demo against real use case scenarios
 
-**PROJECT STATUS: ✅ FOUNDATION COMPLETE**
+**PROJECT STATUS: ✅ CLI FOUNDATION COMPLETE**
 - **Data Layer**: 50,400 data points, AVEVA PI System format, 4 realistic anomaly scenarios
-- **Semantic Search**: 15-tag glossary with OpenAI embeddings, 46-59% accuracy on natural queries
-- **Ready for**: CLI interface and tool function development
+- **Semantic Search**: 5-tag glossary with OpenAI embeddings, 33-42% accuracy on natural queries  
+- **CLI Interface**: Natural language query processing with time filtering and statistical analysis
+- **Modular Tools**: Extensible architecture for adding analysis capabilities
+- **Ready for**: Anomaly detection, correlation analysis, and LLM insight generation
