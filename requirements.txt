@@ -1,0 +1,10 @@
+openai
+pandas
+numpy
+matplotlib
+scikit-learn
+sentence-transformers
+typer
+tqdm
+chromadb
+python-dotenv
