@@ -1,0 +1,36 @@
+---
+description: 
+globs: src/tools/*.py
+alwaysApply: false
+---
+## 🧠 MCP Tool Design Principles
+
+Use these rules when implementing or modifying core analysis tools in the Manufacturing Copilot.
+
+### 1. Narrow Time Windows Early
+- Always limit analysis to a specific time window based on user input or detected anomaly.
+- Never process the full dataset unless explicitly required.
+
+### 2. Tag-Centric Processing
+- Operate on only the relevant tags retrieved via semantic search.
+- Avoid brute-force iteration across the full glossary.
+
+### 3. Statistical Parsimony
+- Prefer simple, explainable stats: mean, min, max, std, and linear trend.
+- Use z-score or simple deltas for anomaly detection before reaching for complex models.
+
+### 4. Correlation, Not Causation
+- Highlight temporal correlations between tags, but do not infer causality.
+- Provide supporting evidence with metrics, timestamps, and charts.
+
+### 5. Modularity
+- Keep tools like `summarize_metric`, `detect_spike`, and `correlate_tags` independent and composable.
+- Favor small, testable units over complex multi-purpose functions.
+
+### 6. Explainability
+- Outputs must be understandable by a non-technical user.
+- Include timestamps, units, and chart references in all summaries.
+
+### 7. Fail Fast, Log Verbosely
+- Handle edge cases gracefully.
+- Use informative log messages and avoid silent failures.
