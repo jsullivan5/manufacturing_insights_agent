@@ -3,6 +3,7 @@
 data/**
 charts/**
 git_ingest_output.md
+.DS_Store
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

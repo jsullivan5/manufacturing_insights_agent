@@ -350,3 +350,28 @@ python src/mcp.py "What's happening with my freezer system?"
 **Questions? Issues? Want to see this in your manufacturing environment?**
 
 Let's build the future of intelligent manufacturing together! 🏭🚀 
+
+## 🎬 Demo Modes
+
+### 🖥️ CLI Demo Mode
+For presentations and video recordings:
+```bash
+python src/mcp.py --demo-mode "What caused the temperature problems yesterday?"
+```
+
+This mode adds strategic pauses between analysis phases, allowing you to narrate:
+- GPT-4 query analysis and planning
+- Data loading and tool execution  
+- Expert insight generation
+- Final recommendations
+
+### 🌐 Web Interface Demo
+**Tag Glossary Reviewer** - Human-in-the-loop P&ID processing:
+```bash
+cd hybrid_ocr_gpt/
+python tag_reviewer.py
+```
+
+Visit `http://127.0.0.1:7860` to see how the Manufacturing Copilot could automatically process engineering drawings to build comprehensive tag databases with human expert validation.
+
+## 🚀 Vision & Next Steps 

@@ -1,12 +1,30 @@
-openai
-pandas
-numpy
-matplotlib
-scikit-learn
-sentence-transformers
-typer
-tqdm
-chromadb
-python-dotenv
-dateparser
-pydantic
+# Manufacturing Copilot Dependencies
+
+# Core Data Processing
+pandas>=2.0.0
+numpy>=1.24.0
+
+# Machine Learning & AI
+openai>=1.0.0
+sentence-transformers>=2.2.0
+chromadb>=0.4.0
+scikit-learn>=1.3.0
+
+# Visualization
+matplotlib>=3.7.0
+seaborn>=0.12.0
+
+# CLI & Utilities
+python-dotenv>=1.0.0
+typer>=0.9.0
+rich>=13.0.0
+
+# Date/Time Processing
+python-dateutil>=2.8.0
+dateparser>=1.1.0
+
+# Data Validation
+pydantic>=2.0.0
+
+# Web Interface for Tag Glossary Demo
+gradio>=4.0.0
