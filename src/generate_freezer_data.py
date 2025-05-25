@@ -49,16 +49,23 @@ class FreezorDataGenerator:
     anomalies to demonstrate manufacturing insight capabilities.
     """
     
-    def __init__(self, start_date: str = "2024-01-15", duration_days: int = 7):
+    def __init__(self, start_date: Optional[str] = None, duration_days: int = 7):
         """
         Initialize the freezer data generator.
         
         Args:
-            start_date: Start date in YYYY-MM-DD format
+            start_date: Start date in YYYY-MM-DD format (optional, defaults to 7 days ago)
             duration_days: Number of days to generate data for
         """
-        self.start_datetime = datetime.strptime(start_date, "%Y-%m-%d")
-        self.end_datetime = self.start_datetime + timedelta(days=duration_days)
+        if start_date is None:
+            # Default to ending at today's midnight, going back duration_days
+            today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+            self.end_datetime = today
+            self.start_datetime = today - timedelta(days=duration_days)
+        else:
+            self.start_datetime = datetime.strptime(start_date, "%Y-%m-%d")
+            self.end_datetime = self.start_datetime + timedelta(days=duration_days)
+            
         self.sampling_interval = timedelta(minutes=1)
         
         # Freezer operational parameters
@@ -417,24 +424,44 @@ def main():
     """
     logger.info("Starting Manufacturing Copilot freezer data generation...")
     
-    # Initialize generator for one week of data
-    generator = FreezorDataGenerator(start_date="2024-01-15", duration_days=7)
+    # Initialize generator for one week of data ending at today's midnight
+    generator = FreezorDataGenerator(duration_days=7)
     
     # Generate baseline normal operation
     generator.generate_normal_operation()
     
+    # Calculate relative anomaly times based on the generated date range
+    # Inject anomalies at strategic times relative to the end date
+    end_date = generator.end_datetime
+    
     # Inject modular anomalies at strategic times
-    # Anomaly 1: Door left open during day shift (high impact, clear cause)
-    generator.inject_anomaly_prolonged_door_open("2024-01-16 14:30", duration_minutes=18)
+    # Anomaly 1: Door left open during day shift (2 days ago, afternoon)
+    anomaly1_time = (end_date - timedelta(days=2)).replace(hour=14, minute=30)
+    generator.inject_anomaly_prolonged_door_open(
+        anomaly1_time.strftime("%Y-%m-%d %H:%M"), 
+        duration_minutes=18
+    )
     
-    # Anomaly 2: Compressor failure during night (harder to detect immediately)
-    generator.inject_anomaly_compressor_failure("2024-01-18 02:15", duration_minutes=55)
+    # Anomaly 2: Compressor failure during night (4 days ago, early morning)
+    anomaly2_time = (end_date - timedelta(days=4)).replace(hour=2, minute=15)
+    generator.inject_anomaly_compressor_failure(
+        anomaly2_time.strftime("%Y-%m-%d %H:%M"), 
+        duration_minutes=55
+    )
     
-    # Anomaly 3: Sensor malfunction creating data inconsistency  
-    generator.inject_anomaly_sensor_flatline("2024-01-19 16:00", duration_hours=4)
+    # Anomaly 3: Sensor malfunction (3 days ago, afternoon)
+    anomaly3_time = (end_date - timedelta(days=3)).replace(hour=16, minute=0)
+    generator.inject_anomaly_sensor_flatline(
+        anomaly3_time.strftime("%Y-%m-%d %H:%M"), 
+        duration_hours=4
+    )
     
-    # Anomaly 4: Power fluctuations (optional, demonstrates electrical issues)
-    generator.inject_anomaly_power_fluctuation("2024-01-20 11:45", duration_minutes=25)
+    # Anomaly 4: Power fluctuations (1 day ago, late morning)
+    anomaly4_time = (end_date - timedelta(days=1)).replace(hour=11, minute=45)
+    generator.inject_anomaly_power_fluctuation(
+        anomaly4_time.strftime("%Y-%m-%d %H:%M"), 
+        duration_minutes=25
+    )
     
     # Export to CSV for MCP analysis
     generator.export_to_csv("data/freezer_system_mock_data.csv")
@@ -449,6 +476,13 @@ def main():
     print(df['Quality'].value_counts())
     print(f"\nTag breakdown:")
     print(df['TagName'].value_counts())
+    
+    # Show anomaly timing for reference
+    print(f"\n=== Injected Anomalies ===")
+    print(f"1. Prolonged door open: {anomaly1_time.strftime('%Y-%m-%d %H:%M')} (18 min)")
+    print(f"2. Compressor failure: {anomaly2_time.strftime('%Y-%m-%d %H:%M')} (55 min)")
+    print(f"3. Sensor flatline: {anomaly3_time.strftime('%Y-%m-%d %H:%M')} (4 hours)")
+    print(f"4. Power fluctuations: {anomaly4_time.strftime('%Y-%m-%d %H:%M')} (25 min)")
     
     logger.info("Freezer data generation completed successfully!")
 

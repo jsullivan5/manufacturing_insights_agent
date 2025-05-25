@@ -24,6 +24,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from src.glossary import TagGlossary
 from src.tools import load_data, summarize_metric, quality_summary
+from src.tools.data_loader import get_data_time_range
 
 # Configure logging
 logging.basicConfig(
@@ -92,14 +93,32 @@ class ManufacturingCopilot:
             # Step 2: Load data for the primary tag
             print("2️⃣  Loading time-series data...")
             
-            # Calculate time window (default to last 24 hours of available data)
-            end_time = datetime(2024, 1, 21, 23, 59)  # End of our mock data
-            start_time = end_time - timedelta(hours=time_window_hours)
+            # Calculate time window based on available data
+            try:
+                # Get the actual data time range
+                data_range = get_data_time_range(primary_tag['tag'])
+                data_end = data_range['end']
+                
+                # Calculate start time based on requested hours from the end of available data
+                start_time = data_end - timedelta(hours=time_window_hours)
+                
+                # Ensure we don't go before the data starts
+                data_start = data_range['start']
+                if start_time < data_start:
+                    start_time = data_start
+                    actual_hours = (data_end - start_time).total_seconds() / 3600
+                    print(f"   ⚠️  Requested {time_window_hours} hours, but only {actual_hours:.1f} hours available")
+                
+            except Exception as e:
+                logger.warning(f"Could not determine data range, using default: {e}")
+                # Fallback to a reasonable default
+                data_end = datetime.now()
+                start_time = data_end - timedelta(hours=time_window_hours)
             
             tag_data = load_data(
                 tag=primary_tag['tag'],
                 start=start_time,
-                end=end_time
+                end=data_end
             )
             
             print(f"   📈 Loaded {len(tag_data)} data points")

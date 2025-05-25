@@ -11,11 +11,5 @@ Please check config/env.py for environment configurations and assume we are usin
 
 This project utilizes the following technologies:
 
-PostgreSQL as the main database
-Python for data processing scripts
-S3-compatible object storage
-boto3 for S3 storage interactions
-requests for HTTP requests/image downloads
-alembic for database migrations
-psycopg2 for PostgreSQL interactions
+When using any OpenAI or LLM calls that require a JSON response, use Pydantic to enforce strict schema adherence
 
