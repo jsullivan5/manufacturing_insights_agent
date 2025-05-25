@@ -229,13 +229,13 @@ This phase adds final demo polish to elevate the project from impressive to unfo
 - [x] 🧭 Reorganize `src/` folder if needed to highlight core logic (e.g., `interpreter/`, `tools/`, `charts/`)
 
 ## 🧠 Demo Experience Enhancements
-- [ ] Add `--demo-mode` CLI flag
-  - [ ] Insert pauses (`input()` or time.sleep) between key phases:
-    - [ ] Before GPT analysis plan creation
-    - [ ] Before each analysis step (stats, anomalies, correlation, chart)
-    - [ ] Before GPT insight generation
-    - [ ] After final insight output
-  - [ ] Print bold titles to separate each phase (`====`, emojis, etc.)
+- [x] Add `--demo-mode` CLI flag
+  - [x] Insert pauses ("Press any key to continue" or similar) between key phases:
+    - [x] Before GPT analysis plan creation
+    - [x] Before each analysis step (stats, anomalies, correlation, chart)
+    - [x] Before GPT insight generation
+    - [x] After final insight output
+  - [x] Print bold titles to separate each phase (`====`, emojis, etc.)
   - [ ] Optional: Add `--no-insight` flag to skip LLM for faster dry runs
 
 - [ ] Surface GPT reasoning from analysis plan

@@ -51,16 +51,19 @@ class ManufacturingCopilot:
         
         print("✅ Ready for natural language queries!")
     
-    def process_query(self, query: str) -> None:
+    def process_query(self, query: str, demo_mode: bool = False) -> None:
         """
         Process a natural language query and provide intelligent insights.
         
         Args:
             query: Natural language question about manufacturing operations
+            demo_mode: If True, pause at key points for demo narration
         """
         try:
-            result = llm_interpret_query(query)
-            print(result)
+            result = llm_interpret_query(query, demo_mode=demo_mode)
+            # The streaming output is already printed, so we just need to handle the final result
+            if result != "Analysis completed successfully. See insights above.":
+                print(result)
         except Exception as e:
             logger.error(f"Error processing query with LLM: {e}")
             print(f"❌ LLM Analysis Error: {e}")
@@ -78,6 +81,9 @@ Examples:
   python src/mcp.py "What caused the temperature spike yesterday?"
   python src/mcp.py "Show me any anomalies in the compressor system"
   python src/mcp.py "Give me a complete analysis of freezer performance"
+  
+Demo Mode (for presentations/videos):
+  python src/mcp.py --demo-mode "What caused the temperature problems yesterday?"
         """
     )
     
@@ -93,6 +99,13 @@ Examples:
         help="Enable verbose logging"
     )
     
+    parser.add_argument(
+        "--demo-mode",
+        "-d",
+        action="store_true",
+        help="Enable demo mode with pauses for video narration"
+    )
+    
     args = parser.parse_args()
     
     # Set logging level
@@ -102,7 +115,7 @@ Examples:
     # Initialize and run MCP
     try:
         mcp = ManufacturingCopilot()
-        mcp.process_query(args.query)
+        mcp.process_query(args.query, demo_mode=args.demo_mode)
         
     except KeyboardInterrupt:
         print("\n🛑 Operation cancelled by user")

@@ -98,19 +98,23 @@ def parse_query_with_llm(query: str) -> AnalysisPlan:
         
     Raises:
         ValueError: If LLM cannot parse the query or create a valid plan
+        RuntimeError: If cannot access required data sources
     """
-    # Get available tags and data range for context
+    # Get available tags and data range for context - fail if not available
     try:
         available_tags = get_available_tags()
         data_range = get_data_time_range()
         tag_descriptions = _get_tag_descriptions()
     except Exception as e:
-        logger.warning(f"Could not get full context: {e}")
-        # Demo data fallback - replace with real PI System tags in production
-        available_tags = ["FREEZER01.TEMP.INTERNAL_C", "FREEZER01.COMPRESSOR.POWER_KW", 
-                         "FREEZER01.DOOR.STATUS", "FREEZER01.TEMP.AMBIENT_C", "FREEZER01.COMPRESSOR.STATUS"]
-        data_range = {"start": datetime.now() - timedelta(days=7), "end": datetime.now()}
-        tag_descriptions = {}
+        logger.error(f"Failed to get data context: {e}")
+        raise RuntimeError(f"Cannot access manufacturing data sources: {e}. Please check data connections and try again.")
+    
+    # Validate we have actual data to work with
+    if not available_tags:
+        raise RuntimeError("No manufacturing tags available. Please check data source connections.")
+    
+    if not data_range or 'start' not in data_range or 'end' not in data_range:
+        raise RuntimeError("Cannot determine data time range. Please check data source connections.")
     
     # Create intelligent prompt for GPT-4
     system_prompt = """You are a senior manufacturing engineer and data analyst specializing in industrial refrigeration systems. 
@@ -159,18 +163,29 @@ def parse_query_with_llm(query: str) -> AnalysisPlan:
     
     try:
         print("Consulting GPT-4 manufacturing expert...")
-        response = openai.chat.completions.create(
+        
+        # Use streaming for more interactive experience
+        stream = openai.chat.completions.create(
             model="gpt-4",
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt}
             ],
             temperature=0.1,  # Low temperature for consistent parsing
-            max_tokens=1000
+            max_tokens=1000,
+            stream=True
         )
         
-        # Parse the JSON response
-        response_text = response.choices[0].message.content.strip()
+        # Collect the streamed response
+        print("🧠 GPT-4 Reasoning: ", end="", flush=True)
+        response_text = ""
+        for chunk in stream:
+            if chunk.choices[0].delta.content is not None:
+                content = chunk.choices[0].delta.content
+                print(content, end="", flush=True)
+                response_text += content
+        
+        print()  # New line after streaming
         
         # Extract JSON from response (handle potential markdown formatting)
         if "```json" in response_text:
@@ -221,7 +236,7 @@ def parse_query_with_llm(query: str) -> AnalysisPlan:
         raise ValueError(f"Could not parse query with LLM: {e}")
 
 
-def execute_analysis_plan(plan: AnalysisPlan) -> Dict[str, Any]:
+def execute_analysis_plan(plan: AnalysisPlan, demo_mode: bool = False) -> Dict[str, Any]:
     """
     Execute the LLM-generated analysis plan by running tools in sequence.
     
@@ -230,6 +245,7 @@ def execute_analysis_plan(plan: AnalysisPlan) -> Dict[str, Any]:
     
     Args:
         plan: LLM-generated analysis plan
+        demo_mode: If True, pause at key points for demo narration
         
     Returns:
         Dictionary with all analysis results and context
@@ -256,6 +272,9 @@ def execute_analysis_plan(plan: AnalysisPlan) -> Dict[str, Any]:
         
         # Step 2: Execute planned analysis steps
         for i, step in enumerate(plan.analysis_steps, 1):
+            if demo_mode and i > 1:  # Don't pause before the first step
+                demo_pause(f"Moving to analysis step {i}: {step.replace('_', ' ').title()}")
+            
             print(f"Step {i}/{len(plan.analysis_steps)}: {step.replace('_', ' ').title()}...")
             
             if step == "detect_anomalies":
@@ -427,17 +446,30 @@ def generate_expert_insights(query: str, context: Dict[str, Any]) -> str:
     """
     
     try:
-        response = openai.chat.completions.create(
+        print("Generating manufacturing insights...")
+        
+        # Use streaming for more interactive experience
+        stream = openai.chat.completions.create(
             model="gpt-4",
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": context_prompt}
             ],
             temperature=0.3,  # Some creativity for insights, but stay factual
-            max_tokens=2000
+            max_tokens=2000,
+            stream=True
         )
         
-        expert_insights = response.choices[0].message.content.strip()
+        # Collect the streamed response
+        print("🧠 Expert Analysis: ", end="", flush=True)
+        expert_insights = ""
+        for chunk in stream:
+            if chunk.choices[0].delta.content is not None:
+                content = chunk.choices[0].delta.content
+                print(content, end="", flush=True)
+                expert_insights += content
+        
+        print()  # New line after streaming
         
         # Add chart reference if available
         if 'visualization' in results:
@@ -445,6 +477,7 @@ def generate_expert_insights(query: str, context: Dict[str, Any]) -> str:
             if results['visualization']['anomaly_highlights'] > 0:
                 chart_info += f" with {results['visualization']['anomaly_highlights']} anomaly periods highlighted"
             expert_insights += chart_info
+            print(chart_info)  # Also print the chart info immediately
         
         return expert_insights
         
@@ -473,17 +506,17 @@ def validate_analysis_plan(plan: AnalysisPlan) -> Tuple[bool, str]:
         try:
             available_tags = get_available_tags()
             return False, f"No relevant tag found for your query. Available tags are: {', '.join(available_tags)}. Please try asking about one of these manufacturing metrics."
-        except Exception:
-            return False, "No relevant tag found for your query. Please try asking about freezer temperature, compressor power, door status, or other manufacturing metrics."
+        except Exception as e:
+            logger.error(f"Cannot get available tags for validation: {e}")
+            return False, f"No relevant tag found for your query and cannot access tag list: {e}. Please check data connections."
     
     try:
         available_tags = get_available_tags()
         if plan.primary_tag not in available_tags:
             return False, f"Unknown tag '{plan.primary_tag}'. Available tags: {', '.join(available_tags)}"
     except Exception as e:
-        logger.warning(f"Could not get available tags for validation: {e}")
-        # If we can't get available tags, we'll let the data loading step handle the error
-        pass
+        logger.error(f"Cannot validate tag against available tags: {e}")
+        return False, f"Cannot validate tag '{plan.primary_tag}': {e}. Please check data connections."
     
     # Check if time range is valid
     if plan.start_time >= plan.end_time:
@@ -509,7 +542,19 @@ def validate_analysis_plan(plan: AnalysisPlan) -> Tuple[bool, str]:
     return True, ""
 
 
-def llm_interpret_query(query: str) -> str:
+def demo_pause(message: str) -> None:
+    """
+    Pause execution in demo mode for video narration.
+    
+    Args:
+        message: Message to display before pausing
+    """
+    print(f"\n🎬 {message}")
+    print("Press Enter to continue...")
+    input()
+
+
+def llm_interpret_query(query: str, demo_mode: bool = False) -> str:
     """
     Main LLM-powered query interpretation function.
     
@@ -520,6 +565,7 @@ def llm_interpret_query(query: str) -> str:
     
     Args:
         query: Natural language query about manufacturing operations
+        demo_mode: If True, pause at key points for demo narration
         
     Returns:
         Expert-level analysis and recommendations
@@ -528,6 +574,9 @@ def llm_interpret_query(query: str) -> str:
         print("\n🔍 QUERY PARSING")
         print("=" * 60)
         print(f"Processing: '{query}'")
+        
+        if demo_mode:
+            demo_pause("About to analyze your query with GPT-4 manufacturing expert...")
         
         # Step 1: LLM parses query and creates analysis plan
         plan = parse_query_with_llm(query)
@@ -547,20 +596,27 @@ def llm_interpret_query(query: str) -> str:
         
         print("\n✅ Plan validated successfully")
         
+        if demo_mode:
+            demo_pause("GPT-4 has created an intelligent analysis plan. Now executing the data analysis steps...")
+        
         # Step 3: Execute the analysis plan
         print("\n📈 EXECUTION")
         print("=" * 60)
-        context = execute_analysis_plan(plan)
+        context = execute_analysis_plan(plan, demo_mode=demo_mode)
         
-        # Step 4: Generate expert insights
+        if demo_mode:
+            demo_pause("Data analysis complete! Now generating expert manufacturing insights with GPT-4...")
+        
+        # Step 4: Generate expert insights with streaming
         print("\n🤖 GENERATING INSIGHTS")
         print("=" * 60)
-        print("Analyzing results with manufacturing expertise...")
         insights = generate_expert_insights(query, context)
         
         print("\n✅ ANALYSIS COMPLETE")
         print("=" * 60)
-        return insights
+        
+        # Return the insights without duplicating the streamed content
+        return "Analysis completed successfully. See insights above."
         
     except Exception as e:
         logger.error(f"❌ LLM Analysis Failed: {e}")
@@ -568,20 +624,19 @@ def llm_interpret_query(query: str) -> str:
 
 
 def _get_tag_descriptions() -> Dict[str, str]:
-    """Get tag descriptions for LLM context."""
+    """
+    Get tag descriptions for LLM context.
+    
+    Raises:
+        RuntimeError: If cannot access tag glossary
+    """
     try:
         glossary = get_glossary()
         tags = glossary.list_all_tags()
         return {tag['tag']: tag['description'] for tag in tags}
-    except Exception:
-        # Demo data fallback - replace with real PI System tag descriptions in production
-        return {
-            "FREEZER01.TEMP.INTERNAL_C": "Internal freezer temperature in Celsius",
-            "FREEZER01.TEMP.AMBIENT_C": "Ambient room temperature in Celsius", 
-            "FREEZER01.COMPRESSOR.POWER_KW": "Compressor power consumption in kilowatts",
-            "FREEZER01.COMPRESSOR.STATUS": "Compressor on/off status",
-            "FREEZER01.DOOR.STATUS": "Freezer door open/closed status"
-        }
+    except Exception as e:
+        logger.error(f"Failed to get tag descriptions: {e}")
+        raise RuntimeError(f"Cannot access tag glossary: {e}. Please check glossary data source.")
 
 
 def main():
