@@ -2,6 +2,7 @@
 
 data/**
 charts/**
+git_ingest_output.md
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
