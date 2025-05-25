@@ -25,6 +25,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from src.glossary import TagGlossary
 from src.tools import load_data, summarize_metric, quality_summary
 from src.tools.data_loader import get_data_time_range
+from src.interpreter import interpret_query
 
 # Configure logging
 logging.basicConfig(
@@ -39,16 +40,22 @@ class ManufacturingCopilot:
     about manufacturing operations and generating data-driven insights.
     """
     
-    def __init__(self):
+    def __init__(self, use_interpreter: bool = True):
         """Initialize the MCP with glossary and tools."""
         print("🏭 Manufacturing Copilot - Initializing...")
         
+        self.use_interpreter = use_interpreter
+        
         try:
-            # Initialize tag glossary for semantic search
-            print("   Loading tag glossary with semantic search...")
-            self.glossary = TagGlossary()
+            if not use_interpreter:
+                # Initialize tag glossary for semantic search (legacy mode)
+                print("   Loading tag glossary with semantic search...")
+                self.glossary = TagGlossary()
+                print(f"   ✅ Loaded {len(self.glossary.list_all_tags())} tags for analysis")
+            else:
+                print("   🧠 Using intelligent query interpreter...")
+                print("   ✅ Ready for natural language queries!")
             
-            print(f"   ✅ Loaded {len(self.glossary.list_all_tags())} tags for analysis")
             print("   Ready for natural language queries!\n")
             
         except Exception as e:
@@ -62,11 +69,30 @@ class ManufacturingCopilot:
         
         Args:
             query: Natural language question about manufacturing operations
-            time_window_hours: How many hours of recent data to analyze (default: 24)
+            time_window_hours: How many hours of recent data to analyze (default: 24, ignored in interpreter mode)
         """
         print(f"🔍 Query: '{query}'")
         print("=" * 60)
         
+        if self.use_interpreter:
+            # Use the new intelligent interpreter
+            try:
+                result = interpret_query(query)
+                print(result)
+                print()
+                print("✅ Analysis complete! Next steps:")
+                print("   • Run anomaly detection to find unusual patterns")
+                print("   • Correlate with related tags for root cause analysis")
+                print("   • Generate visualizations and detailed insights")
+            except Exception as e:
+                logger.error(f"Error processing query: {e}")
+                print(f"   ❌ Error: {e}")
+        else:
+            # Use the legacy detailed processing mode
+            self._process_query_legacy(query, time_window_hours)
+    
+    def _process_query_legacy(self, query: str, time_window_hours: int = 24) -> None:
+        """Legacy detailed query processing method."""
         try:
             # Step 1: Find relevant tags using semantic search
             print("1️⃣  Finding relevant tags...")
@@ -179,6 +205,7 @@ Examples:
   python src/mcp.py "What caused the temperature spike?"
   python src/mcp.py "Is the compressor running normally?"
   python src/mcp.py "Show me door activity patterns" --hours 48
+  python src/mcp.py "Show me freezer temperatures last night" --legacy
         """
     )
     
@@ -191,7 +218,13 @@ Examples:
         "--hours",
         type=int,
         default=24,
-        help="Number of hours of data to analyze (default: 24)"
+        help="Number of hours of data to analyze (default: 24, only used in legacy mode)"
+    )
+    
+    parser.add_argument(
+        "--legacy",
+        action="store_true",
+        help="Use legacy detailed processing mode instead of intelligent interpreter"
     )
     
     parser.add_argument(
@@ -209,7 +242,7 @@ Examples:
     
     # Initialize and run MCP
     try:
-        mcp = ManufacturingCopilot()
+        mcp = ManufacturingCopilot(use_interpreter=not args.legacy)
         mcp.process_query(args.query, args.hours)
         
     except KeyboardInterrupt:

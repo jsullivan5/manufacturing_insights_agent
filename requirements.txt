@@ -8,3 +8,5 @@ typer
 tqdm
 chromadb
 python-dotenv
+dateparser
+pydantic
