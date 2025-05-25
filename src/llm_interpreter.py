@@ -92,6 +92,7 @@ def parse_query_with_llm(query: str) -> AnalysisPlan:
         tag_descriptions = _get_tag_descriptions()
     except Exception as e:
         logger.warning(f"Could not get full context: {e}")
+        # Demo data fallback - replace with real PI System tags in production
         available_tags = ["FREEZER01.TEMP.INTERNAL_C", "FREEZER01.COMPRESSOR.POWER_KW", 
                          "FREEZER01.DOOR.STATUS", "FREEZER01.TEMP.AMBIENT_C", "FREEZER01.COMPRESSOR.STATUS"]
         data_range = {"start": datetime.now() - timedelta(days=7), "end": datetime.now()}
@@ -116,25 +117,30 @@ def parse_query_with_llm(query: str) -> AnalysisPlan:
     - Data Range: {data_range['start']} to {data_range['end']}
     - Available Analysis Tools: detect_anomalies, correlate_tags, generate_chart, basic_statistics
     
-    Create an analysis plan as JSON with:
+    You MUST respond with a valid JSON object in this exact format:
     {{
-        "primary_tag": "most relevant tag name",
+        "primary_tag": "most relevant tag name from available tags",
         "start_time": "YYYY-MM-DD HH:MM:SS",
         "end_time": "YYYY-MM-DD HH:MM:SS", 
-        "analysis_steps": ["ordered", "list", "of", "tools"],
+        "analysis_steps": ["basic_statistics", "generate_chart"],
         "reasoning": "expert explanation of analysis approach",
-        "sensitivity_level": "low/normal/high for anomaly detection"
+        "sensitivity_level": "normal"
     }}
     
     GUIDELINES:
-    - Choose the most relevant tag based on the query context
+    - ALWAYS choose one of the available tags, even if not perfectly relevant
+    - If no tag is clearly relevant, choose the closest match and explain in reasoning
     - Parse time references intelligently (yesterday, last week, etc.)
+    - If no time reference is given, use the last 24 hours
     - Select appropriate analysis tools based on what the user is asking
     - If asking about problems/issues/anomalies: include detect_anomalies
     - If asking about causes/relationships: include correlate_tags  
     - If asking to show/display/visualize: include generate_chart
     - Always include basic_statistics as foundation
     - Provide expert reasoning for your choices
+    
+    CRITICAL: You must ALWAYS return valid JSON. Never refuse or explain why you can't help.
+    Choose the best available tag and explain your reasoning in the "reasoning" field.
     """
     
     try:
@@ -165,9 +171,29 @@ def parse_query_with_llm(query: str) -> AnalysisPlan:
         
         plan_data = json.loads(json_text)
         
-        # Convert string dates to datetime objects
-        plan_data['start_time'] = datetime.fromisoformat(plan_data['start_time'].replace('Z', '+00:00')).replace(tzinfo=None)
-        plan_data['end_time'] = datetime.fromisoformat(plan_data['end_time'].replace('Z', '+00:00')).replace(tzinfo=None)
+        # Convert string dates to datetime objects with robust error handling
+        try:
+            start_time_str = plan_data['start_time']
+            end_time_str = plan_data['end_time']
+            
+            # Handle N/A or invalid dates by falling back to reasonable defaults
+            if start_time_str in ['N/A', 'null', None] or end_time_str in ['N/A', 'null', None]:
+                logger.warning("LLM returned invalid dates, using default time range")
+                end_time = datetime.now()
+                start_time = end_time - timedelta(hours=24)
+            else:
+                start_time = datetime.fromisoformat(start_time_str.replace('Z', '+00:00')).replace(tzinfo=None)
+                end_time = datetime.fromisoformat(end_time_str.replace('Z', '+00:00')).replace(tzinfo=None)
+            
+            plan_data['start_time'] = start_time
+            plan_data['end_time'] = end_time
+            
+        except (ValueError, TypeError) as e:
+            logger.warning(f"Failed to parse LLM dates: {e}, using default time range")
+            end_time = datetime.now()
+            start_time = end_time - timedelta(hours=24)
+            plan_data['start_time'] = start_time
+            plan_data['end_time'] = end_time
         
         # Create and validate the plan
         plan = AnalysisPlan(**plan_data)
@@ -457,6 +483,7 @@ def _get_tag_descriptions() -> Dict[str, str]:
         tags = glossary.list_all_tags()
         return {tag['tag']: tag['description'] for tag in tags}
     except Exception:
+        # Demo data fallback - replace with real PI System tag descriptions in production
         return {
             "FREEZER01.TEMP.INTERNAL_C": "Internal freezer temperature in Celsius",
             "FREEZER01.TEMP.AMBIENT_C": "Ambient room temperature in Celsius", 

@@ -322,6 +322,8 @@ def find_correlated_tags(primary_tag: str, start_time: datetime, end_time: datet
 def main():
     """
     Demo and test the correlation analysis functions.
+    
+    This is a demo function for testing - not part of the core MCP pipeline.
     """
     print("🔗 Manufacturing Copilot - Correlation Analysis Demo")
     print("=" * 58)

@@ -215,3 +215,65 @@ Use structured prompts like:
   "correlations": [...],
   "tag_glossary": {...}
 }
+```
+
+# ✅ Phase 3: Refinement & Polish
+
+This phase adds final demo polish to elevate the project from impressive to unforgettable. Focus on presentation, clarity, and storytelling.
+
+## 🧹 Code Cleanup (Critical for Reviewer Focus) ✅ COMPLETED
+- [x] 🔥 Remove all legacy deterministic logic (e.g. keyword-based interpreters)
+- [x] 🗑️ Delete unused modules, test files, and placeholder stubs
+- [x] 🧼 Strip out any hardcoded tag fallbacks unless clearly marked as demo
+- [x] 🧪 Rename or remove old `main()` blocks if not part of final flow
+- [x] 🧭 Reorganize `src/` folder if needed to highlight core logic (e.g., `interpreter/`, `tools/`, `charts/`)
+
+## 🧠 Demo Experience Enhancements
+- [ ] Add `--demo-mode` CLI flag
+  - [ ] Insert pauses (`input()` or time.sleep) between key phases:
+    - [ ] Before GPT analysis plan creation
+    - [ ] Before each analysis step (stats, anomalies, correlation, chart)
+    - [ ] Before GPT insight generation
+    - [ ] After final insight output
+  - [ ] Print bold titles to separate each phase (`====`, emojis, etc.)
+  - [ ] Optional: Add `--no-insight` flag to skip LLM for faster dry runs
+
+- [ ] Surface GPT reasoning from analysis plan
+  - [ ] Clearly display `📋 Reasoning:` string above or below logs
+  - [ ] Use dimmed or italicized text style to set it apart
+
+- [ ] Improve log clarity and narrative
+  - [ ] Normalize tense ("Loaded", "Executing", "Completed")
+  - [ ] Remove redundant lines
+  - [ ] Make log events flow like a story
+  - [ ] Use emojis strategically (📊, 🧠, 🛠️, ✅, ⚠️)
+
+## 📄 README Final Touches
+- [ ] Add a short **Demo Summary** (~1-2 paragraphs)
+  - What it is
+  - What makes it special
+  - Key capabilities
+- [ ] Add a **How to Run in Demo Mode** section
+  - CLI command
+  - Screenshot of output or explanation of pauses
+- [ ] Include a **Vision & Next Steps** section
+  - LLM RAG from internal docs
+  - Natural language alert creation
+  - Human-in-the-loop diagram tagging UI
+  - Predictive maintenance insights
+  - Gradio/Streamlit/CLI UX upgrade options
+- [ ] Add **Credits** and list `Built by James Sullivan` with your role (e.g. "LLM Architect")
+
+## 📊 Visualization Add-ons (Optional but powerful)
+- [ ] Add support for tag-level **aggregations**
+  - [ ] Daily average, min/max, range charts
+  - [ ] Compare shifts, day vs night, or weekday vs weekend
+- [ ] Heatmap-style correlation matrix
+- [ ] Chart overlays with user-selected tags
+
+## 🧪 Final Demo Run
+- [ ] Run the CLI with `--demo-mode` and record short Loom or video
+- [ ] Verify:
+  - [ ] Each section is clearly explained with pauses
+  - [ ] GPT reasoning is visible
+  - [ ] Results are correct and charts are readable

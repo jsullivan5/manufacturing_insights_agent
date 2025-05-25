@@ -358,6 +358,8 @@ def _format_time_axis(ax: plt.Axes, df: pd.DataFrame) -> None:
 def main():
     """
     Demo and test the visualization functions.
+    
+    This is a demo function for testing - not part of the core MCP pipeline.
     """
     print("📊 Manufacturing Copilot - Visualization Demo")
     print("=" * 52)

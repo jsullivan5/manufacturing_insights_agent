@@ -202,6 +202,8 @@ def analyze_anomaly_patterns(df: pd.DataFrame, threshold: float = 3.0) -> dict:
 def main():
     """
     Demo and test the anomaly detection functions with synthetic data.
+    
+    This is a demo function for testing - not part of the core MCP pipeline.
     """
     print("🔍 Manufacturing Copilot - Anomaly Detection Demo")
     print("=" * 55)
