@@ -167,3 +167,51 @@ python src/mcp.py "Show me correlations between all freezer metrics"
 - **Actionable Insights**: Clear recommendations for next steps
 
 **Total Implementation**: Complete manufacturing insights pipeline from natural language query to professional analysis with charts and recommendations 🎉
+
+---
+
+# 🧠 Phase 2: Full LLM-Powered Manufacturing Copilot
+
+I want to move beyond a deterministic tool wrapper. The goal now is to build an **LLM-powered assistant** that analyzes time-series PI-style data, explains anomalies, infers causes, and recommends actions — all in natural language.
+
+---
+
+## 🔧 Current Status
+
+- I have working tools: `load_data`, `detect_spike`, `correlate_tags`, `generate_chart`, etc.
+- I have an interpreter that parses time ranges and tags from user input.
+- The current interpreter routes to tools based on keywords. **That must be replaced.**
+
+---
+
+## 🧠 What I Need This System To Do (LLM Reasoning Layer)
+
+### 💬 Natural Language Queries
+The assistant must:
+- Parse user intent, tags, and time ranges using GPT, not regex or keyword matching.
+- Route intelligently to tool functions based on parsed intent.
+
+### 🧪 Multistep Tool Use
+The assistant must:
+- Call tools sequentially and logically (e.g., load → detect → correlate → chart)
+- Chain results together into context-aware insights
+- Use intermediate results as reasoning context
+
+### 📈 LLM-Powered Explanations
+The assistant must:
+- Interpret the results of tool functions (e.g., anomalies and correlations)
+- Explain them in natural language like a process engineer would
+- Highlight potential causes and suggest next investigative steps
+
+### 🧠 GPT Inputs
+Use structured prompts like:
+```json
+{
+  "query": "Were there any anomalies in the freezer last week?",
+  "tag": "TEMP_INTERNAL",
+  "time_range": ["2024-06-14", "2024-06-21"],
+  "summary_stats": {...},
+  "anomalies": [...],
+  "correlations": [...],
+  "tag_glossary": {...}
+}
