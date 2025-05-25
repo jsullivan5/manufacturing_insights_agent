@@ -1,0 +1,32 @@
+## 🧠 Planner Mode Behavior & Usage Guidelines
+
+Planner Mode is a deep-analysis mode where the agent reflects on a feature request, scopes the necessary changes, and produces a structured, step-by-step plan for implementation.
+
+### 🛑 When to Use Planner Mode
+- **Only enter Planner Mode when explicitly instructed.**
+- Do *not* trigger Planner Mode automatically when uncertain.  
+  → If you’re unsure, ask 1–2 direct clarifying questions instead of generating a full plan.
+
+---
+
+### ✅ What to Do in Planner Mode (When Triggered)
+1. **Analyze** the prompt and relevant files to understand the scope.
+2. **Ask 4–6 clarifying questions** to close any knowledge gaps.
+3. Once answered, **draft a detailed plan of action**.
+4. **Wait for my approval** before beginning any implementation.
+5. After approval, **implement each step sequentially**, announcing what’s completed and what’s next after every step.
+
+---
+
+### 📋 Checklist Expectations
+- Always create a checklist based on the task or plan—even if the file is incomplete or partially written.
+- Place the checklist in `.documentation/notepad/[feature-name].md`.
+- Do *not* begin implementing immediately after creating the checklist—wait for my signal.
+- As you complete tasks from a checklist, **mark them off** and provide regular progress updates.
+
+---
+
+### 🔁 Throughout the Process
+- Stick to the checklist as the source of truth.
+- Push back on bad ideas with questions or counterexamples.
+- Prioritize clarity and collaboration over assumptions.
