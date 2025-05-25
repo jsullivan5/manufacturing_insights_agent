@@ -277,3 +277,17 @@ This phase adds final demo polish to elevate the project from impressive to unfo
   - [ ] Each section is clearly explained with pauses
   - [ ] GPT reasoning is visible
   - [ ] Results are correct and charts are readable
+
+## 🎬 Log Formatting & CLI Output Polish ✅ COMPLETED
+- [x] 🔕 Suppress or Silence Low-Value Logs
+  - [x] Suppress HTTP logs for `openai.embeddings` and `chat.completions` (too verbose for CLI)
+  - [x] Silence telemetry messages from 3rd-party libraries unless in verbose/debug mode
+  - [x] Suppress tokenizer warnings and model loading progress bars
+- [x] 🧠 Improve Phase Delineation and Clarity
+  - [x] Add **visual section headers** with clear emoji icons: `🔍 QUERY PARSING`, `📋 ANALYSIS PLAN`, `📈 EXECUTION`, `🤖 INSIGHTS`
+  - [x] Add horizontal rule equivalents for CLI: `print("=" * 60)`
+  - [x] Clean, simplified logging format without timestamps for demo
+- [x] 📋 Surface Key Context for Narration
+  - [x] After analysis plan, log in a readable format: Primary Tag, Time Range, Steps, Reasoning
+  - [x] Show clear progress indicators during execution with step counters
+  - [x] Display data loading progress and results summary

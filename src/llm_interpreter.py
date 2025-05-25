@@ -20,6 +20,10 @@ import json
 from datetime import datetime, timedelta
 from typing import List, Dict, Any, Optional, Tuple
 
+# Suppress tokenizer warnings and model loading verbosity
+os.environ['TOKENIZERS_PARALLELISM'] = 'false'
+os.environ['TRANSFORMERS_VERBOSITY'] = 'error'
+
 # Add the project root to the Python path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -35,8 +39,20 @@ from src.tools import (
 )
 from src.tools.data_loader import get_data_time_range, get_available_tags
 
-# Configure logging
+# Configure logging - suppress verbose HTTP and telemetry logs
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(message)s'  # Simplified format for cleaner output
+)
 logger = logging.getLogger(__name__)
+
+# Suppress verbose third-party logs
+logging.getLogger("httpx").setLevel(logging.WARNING)
+logging.getLogger("openai").setLevel(logging.WARNING)
+logging.getLogger("chromadb").setLevel(logging.WARNING)
+logging.getLogger("sentence_transformers").setLevel(logging.WARNING)
+logging.getLogger("transformers").setLevel(logging.WARNING)
+logging.getLogger("torch").setLevel(logging.WARNING)
 
 # Initialize OpenAI client
 openai.api_key = os.getenv('OPENAI_API_KEY')
@@ -83,8 +99,6 @@ def parse_query_with_llm(query: str) -> AnalysisPlan:
     Raises:
         ValueError: If LLM cannot parse the query or create a valid plan
     """
-    logger.info(f"Using LLM to parse query: '{query}'")
-    
     # Get available tags and data range for context
     try:
         available_tags = get_available_tags()
@@ -144,6 +158,7 @@ def parse_query_with_llm(query: str) -> AnalysisPlan:
     """
     
     try:
+        print("Consulting GPT-4 manufacturing expert...")
         response = openai.chat.completions.create(
             model="gpt-4",
             messages=[
@@ -198,7 +213,7 @@ def parse_query_with_llm(query: str) -> AnalysisPlan:
         # Create and validate the plan
         plan = AnalysisPlan(**plan_data)
         
-        logger.info(f"LLM created analysis plan: {plan.primary_tag}, {len(plan.analysis_steps)} steps")
+        print("✅ Analysis plan created")
         return plan
         
     except Exception as e:
@@ -219,8 +234,6 @@ def execute_analysis_plan(plan: AnalysisPlan) -> Dict[str, Any]:
     Returns:
         Dictionary with all analysis results and context
     """
-    logger.info(f"Executing analysis plan with {len(plan.analysis_steps)} steps")
-    
     context = {
         'query_plan': plan,
         'primary_tag': plan.primary_tag,
@@ -230,19 +243,20 @@ def execute_analysis_plan(plan: AnalysisPlan) -> Dict[str, Any]:
     
     try:
         # Step 1: Always load data and get basic statistics
-        logger.info(f"Loading data for {plan.primary_tag}")
+        print(f"Loading data for {plan.primary_tag}...")
         df = load_data(plan.primary_tag, plan.start_time, plan.end_time)
         
         if df.empty:
             context['error'] = f"No data found for {plan.primary_tag} in specified time range"
             return context
         
+        print(f"✅ Loaded {len(df):,} data points")
         context['data_points'] = len(df)
         context['analysis_results']['basic_statistics'] = summarize_metric(df)
         
         # Step 2: Execute planned analysis steps
-        for step in plan.analysis_steps:
-            logger.info(f"Executing analysis step: {step}")
+        for i, step in enumerate(plan.analysis_steps, 1):
+            print(f"Step {i}/{len(plan.analysis_steps)}: {step.replace('_', ' ').title()}...")
             
             if step == "detect_anomalies":
                 # Set threshold based on sensitivity level
@@ -263,6 +277,7 @@ def execute_analysis_plan(plan: AnalysisPlan) -> Dict[str, Any]:
                         for ts, val, z, reason in anomalies[:10]  # Limit to top 10
                     ]
                 }
+                print(f"   Found {len(anomalies)} anomalies (threshold: {threshold}σ)")
                 
             elif step == "correlate_tags":
                 correlations = find_correlated_tags(
@@ -284,6 +299,7 @@ def execute_analysis_plan(plan: AnalysisPlan) -> Dict[str, Any]:
                         for corr in correlations[:5]  # Top 5 correlations
                     ]
                 }
+                print(f"   Found {len(correlations)} significant correlations")
                 
             elif step == "generate_chart":
                 # Generate chart with anomaly highlights if available
@@ -304,8 +320,8 @@ def execute_analysis_plan(plan: AnalysisPlan) -> Dict[str, Any]:
                     'chart_filename': os.path.basename(chart_path),
                     'anomaly_highlights': len(highlights) if highlights else 0
                 }
+                print(f"   Generated chart: {os.path.basename(chart_path)}")
         
-        logger.info(f"Analysis plan execution completed successfully")
         return context
         
     except Exception as e:
@@ -328,8 +344,6 @@ def generate_expert_insights(query: str, context: Dict[str, Any]) -> str:
     Returns:
         Expert-level insights and recommendations in natural language
     """
-    logger.info("Generating expert insights with LLM")
-    
     if 'error' in context:
         return f"❌ **Analysis Error**: {context['error']}"
     
@@ -432,7 +446,6 @@ def generate_expert_insights(query: str, context: Dict[str, Any]) -> str:
                 chart_info += f" with {results['visualization']['anomaly_highlights']} anomaly periods highlighted"
             expert_insights += chart_info
         
-        logger.info("Expert insights generated successfully")
         return expert_insights
         
     except Exception as e:
@@ -455,8 +468,6 @@ def validate_analysis_plan(plan: AnalysisPlan) -> Tuple[bool, str]:
         - can_continue: True if plan is valid, False if invalid
         - error_reason: Empty string if valid, descriptive error if invalid
     """
-    logger.debug(f"Validating analysis plan for tag: {plan.primary_tag}")
-    
     # Check if the primary tag exists in available tags
     if plan.primary_tag == "NO_RELEVANT_TAG":
         try:
@@ -495,7 +506,6 @@ def validate_analysis_plan(plan: AnalysisPlan) -> Tuple[bool, str]:
     if invalid_steps:
         return False, f"Invalid analysis steps: {', '.join(invalid_steps)}. Valid steps: {', '.join(valid_steps)}"
     
-    logger.debug("Analysis plan validation passed")
     return True, ""
 
 
@@ -515,29 +525,45 @@ def llm_interpret_query(query: str) -> str:
         Expert-level analysis and recommendations
     """
     try:
-        logger.info(f"🧠 LLM-powered analysis starting for: '{query}'")
+        print("\n🔍 QUERY PARSING")
+        print("=" * 60)
+        print(f"Processing: '{query}'")
         
         # Step 1: LLM parses query and creates analysis plan
         plan = parse_query_with_llm(query)
-        logger.info(f"📋 Analysis plan: {plan.reasoning}")
+        
+        print("\n📋 ANALYSIS PLAN")
+        print("=" * 60)
+        print(f"Primary Tag: {plan.primary_tag}")
+        print(f"Time Range: {plan.start_time.strftime('%Y-%m-%d %H:%M')} → {plan.end_time.strftime('%Y-%m-%d %H:%M')}")
+        print(f"Analysis Steps: {', '.join(plan.analysis_steps)}")
+        print(f"Reasoning: {plan.reasoning}")
         
         # Step 2: Validate the analysis plan
         can_continue, error_reason = validate_analysis_plan(plan)
         if not can_continue:
-            logger.error(f"Analysis plan validation failed: {error_reason}")
+            print(f"\n❌ VALIDATION FAILED: {error_reason}")
             return f"❌ **Analysis Plan Validation Failed**: {error_reason}"
         
+        print("\n✅ Plan validated successfully")
+        
         # Step 3: Execute the analysis plan
+        print("\n📈 EXECUTION")
+        print("=" * 60)
         context = execute_analysis_plan(plan)
         
         # Step 4: Generate expert insights
+        print("\n🤖 GENERATING INSIGHTS")
+        print("=" * 60)
+        print("Analyzing results with manufacturing expertise...")
         insights = generate_expert_insights(query, context)
         
-        logger.info("✅ LLM-powered analysis completed successfully")
+        print("\n✅ ANALYSIS COMPLETE")
+        print("=" * 60)
         return insights
         
     except Exception as e:
-        logger.error(f"LLM interpretation failed: {e}")
+        logger.error(f"❌ LLM Analysis Failed: {e}")
         return f"❌ **LLM Analysis Failed**: {e}\n\nPlease check your OpenAI API key and try again."
 
 

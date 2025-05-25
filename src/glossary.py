@@ -16,14 +16,25 @@ from typing import Dict, List, Optional
 import logging
 from dataclasses import dataclass
 
+# Suppress tokenizer warnings and model loading verbosity for cleaner demo output
+os.environ['TOKENIZERS_PARALLELISM'] = 'false'
+os.environ['TRANSFORMERS_VERBOSITY'] = 'error'
+os.environ['HF_HUB_DISABLE_PROGRESS_BARS'] = '1'
+
 import chromadb
 from chromadb.config import Settings
 from openai import OpenAI
 from dotenv import load_dotenv
+import pandas as pd
 
 # Configure logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(level=logging.INFO, format='%(message)s')
 logger = logging.getLogger(__name__)
+
+# Suppress verbose third-party logs for cleaner demo output
+logging.getLogger("sentence_transformers").setLevel(logging.WARNING)
+logging.getLogger("transformers").setLevel(logging.WARNING)
+logging.getLogger("torch").setLevel(logging.WARNING)
 
 @dataclass
 class TagInfo:
@@ -31,6 +42,7 @@ class TagInfo:
     tag: str
     description: str
     unit: str
+    category: str
 
 class TagGlossary:
     """
@@ -40,112 +52,97 @@ class TagGlossary:
     queries to find relevant tags for manufacturing data analysis.
     """
     
-    def __init__(self, glossary_file: str = "data/tag_glossary.csv"):
+    def __init__(self, glossary_path: str = "data/tag_glossary.csv"):
         """
-        Initialize the tag glossary with semantic search capabilities.
+        Initialize the TagGlossary with semantic search capabilities.
         
         Args:
-            glossary_file: Path to CSV file containing tag metadata
+            glossary_path: Path to the CSV file containing tag definitions
         """
-        # Load environment variables
-        load_dotenv()
+        self.glossary_path = glossary_path
+        self.tags = []
+        self.collection = None
         
-        # Initialize OpenAI client
-        api_key = os.getenv("OPENAI_API_KEY")
-        if not api_key:
-            raise ValueError("OPENAI_API_KEY not found in environment variables")
-        
-        self.openai_client = OpenAI(api_key=api_key)
-        
-        # Initialize Chroma in-memory database
-        self.chroma_client = chromadb.Client()
-        
-        # Create collection for tag embeddings
-        self.collection = self.chroma_client.create_collection(
-            name="tag_embeddings",
-            metadata={"description": "PI System tag descriptions for semantic search"}
-        )
-        
-        # Load and process glossary
-        self.tags: List[TagInfo] = []
-        self.glossary_file = glossary_file
-        self._load_glossary()
-        self._embed_descriptions()
-        
-        logger.info(f"Loaded {len(self.tags)} tags into semantic search index")
+        # Load tags and initialize vector database
+        self._load_tags()
+        self._initialize_vector_db()
     
-    def _load_glossary(self) -> None:
-        """Load tag glossary from CSV file."""
-        logger.info(f"Loading tag glossary from {self.glossary_file}")
-        
+    def _load_tags(self) -> None:
+        """Load tag definitions from CSV file."""
         try:
-            with open(self.glossary_file, 'r', newline='', encoding='utf-8') as csvfile:
-                reader = csv.DictReader(csvfile)
-                for row in reader:
-                    tag_info = TagInfo(
-                        tag=row['tag'].strip(),
-                        description=row['description'].strip(), 
-                        unit=row['unit'].strip()
-                    )
-                    self.tags.append(tag_info)
-                    
-        except FileNotFoundError:
-            raise FileNotFoundError(f"Tag glossary file not found: {self.glossary_file}")
-        except Exception as e:
-            raise RuntimeError(f"Error loading tag glossary: {e}")
-    
-    def _get_embedding(self, text: str) -> List[float]:
-        """
-        Get OpenAI embedding for text using text-embedding-3-small model.
-        
-        Args:
-            text: Text to embed
+            df = pd.read_csv(self.glossary_path)
             
-        Returns:
-            List of float values representing the embedding vector
-        """
-        try:
-            response = self.openai_client.embeddings.create(
-                input=text,
-                model="text-embedding-3-small"
-            )
-            return response.data[0].embedding
+            for _, row in df.iterrows():
+                tag = TagInfo(
+                    tag=row['tag'],
+                    description=row['description'],
+                    unit=row['unit'],
+                    category=row['category']
+                )
+                self.tags.append(tag)
+            
+            print(f"Loaded {len(self.tags)} manufacturing tags")
+            
         except Exception as e:
-            logger.error(f"Error getting embedding for text: {e}")
+            logger.error(f"Error loading tag glossary: {e}")
             raise
     
-    def _embed_descriptions(self) -> None:
-        """Generate embeddings for all tag descriptions and store in Chroma."""
-        logger.info("Generating embeddings for tag descriptions...")
-        
-        descriptions = [tag.description for tag in self.tags]
-        tag_ids = [tag.tag for tag in self.tags]
-        
-        # Generate embeddings in batch
-        embeddings = []
-        for i, description in enumerate(descriptions):
-            logger.debug(f"Embedding tag {i+1}/{len(descriptions)}: {tag_ids[i]}")
-            embedding = self._get_embedding(description)
-            embeddings.append(embedding)
-        
-        # Store in Chroma with metadata
-        metadatas = [
-            {
-                "tag": tag.tag,
-                "description": tag.description,
-                "unit": tag.unit
-            }
-            for tag in self.tags
-        ]
-        
-        self.collection.add(
-            embeddings=embeddings,
-            documents=descriptions,
-            metadatas=metadatas,
-            ids=tag_ids
-        )
-        
-        logger.info(f"Successfully embedded {len(descriptions)} tag descriptions")
+    def _initialize_vector_db(self) -> None:
+        """Initialize ChromaDB with tag embeddings for semantic search."""
+        try:
+            # Initialize ChromaDB client
+            self.client = chromadb.Client()
+            
+            # Create or get collection
+            collection_name = "manufacturing_tags"
+            try:
+                self.collection = self.client.get_collection(collection_name)
+            except:
+                self.collection = self.client.create_collection(collection_name)
+            
+            # Check if collection is empty and needs to be populated
+            if self.collection.count() == 0:
+                print("Building semantic search index...")
+                self._populate_embeddings()
+            
+        except Exception as e:
+            logger.error(f"Error initializing vector database: {e}")
+            raise
+    
+    def _populate_embeddings(self) -> None:
+        """Generate and store embeddings for all tags."""
+        try:
+            # Prepare data for embedding
+            documents = []
+            metadatas = []
+            ids = []
+            
+            for i, tag in enumerate(self.tags):
+                # Create searchable text combining tag name and description
+                searchable_text = f"{tag.tag} {tag.description} {tag.category}"
+                documents.append(searchable_text)
+                
+                metadatas.append({
+                    "tag": tag.tag,
+                    "description": tag.description,
+                    "unit": tag.unit,
+                    "category": tag.category
+                })
+                
+                ids.append(f"tag_{i}")
+            
+            # Add to collection (ChromaDB will generate embeddings automatically)
+            self.collection.add(
+                documents=documents,
+                metadatas=metadatas,
+                ids=ids
+            )
+            
+            print(f"✅ Semantic search ready")
+            
+        except Exception as e:
+            logger.error(f"Error generating embeddings: {e}")
+            raise
     
     def search_tags(self, query: str, top_k: int = 3) -> List[Dict]:
         """
@@ -158,31 +155,26 @@ class TagGlossary:
         Returns:
             List of dictionaries containing tag information and similarity scores
         """
-        logger.debug(f"Searching for tags similar to: '{query}'")
-        
         try:
-            # Get embedding for query
-            query_embedding = self._get_embedding(query)
-            
-            # Search Chroma collection
+            # Use ChromaDB's built-in query functionality
             results = self.collection.query(
-                query_embeddings=[query_embedding],
+                query_texts=[query],
                 n_results=top_k,
                 include=['metadatas', 'documents', 'distances']
             )
             
             # Format results
             search_results = []
-            for i in range(len(results['ids'][0])):
-                result = {
-                    'tag': results['metadatas'][0][i]['tag'],
-                    'description': results['metadatas'][0][i]['description'],
-                    'unit': results['metadatas'][0][i]['unit'],
-                    'similarity_score': 1.0 - results['distances'][0][i]  # Convert distance to similarity
-                }
-                search_results.append(result)
+            if results['ids'] and results['ids'][0]:
+                for i in range(len(results['ids'][0])):
+                    result = {
+                        'tag': results['metadatas'][0][i]['tag'],
+                        'description': results['metadatas'][0][i]['description'],
+                        'unit': results['metadatas'][0][i]['unit'],
+                        'similarity_score': 1.0 - results['distances'][0][i]  # Convert distance to similarity
+                    }
+                    search_results.append(result)
             
-            logger.debug(f"Found {len(search_results)} similar tags")
             return search_results
             
         except Exception as e:
@@ -204,14 +196,22 @@ class TagGlossary:
                 return tag
         return None
     
-    def list_all_tags(self) -> List[str]:
+    def list_all_tags(self) -> List[Dict]:
         """
-        Get list of all available tag names.
+        Get list of all available tags with their metadata.
         
         Returns:
-            List of tag names in the glossary
+            List of dictionaries containing tag information
         """
-        return [tag.tag for tag in self.tags]
+        return [
+            {
+                'tag': tag.tag,
+                'description': tag.description,
+                'unit': tag.unit,
+                'category': tag.category
+            }
+            for tag in self.tags
+        ]
 
 
 def search_tags(query: str, top_k: int = 3) -> List[Dict]:
