@@ -388,7 +388,7 @@ class FreezorDataGenerator:
         data = []
         for point in self.data_points:
             data.append({
-                'Timestamp': point.timestamp.strftime('%Y-%m-%d %H:%M:%S'),
+                'Timestamp': point.timestamp.isoformat(),
                 'TagName': point.tag_name,
                 'Value': point.value,
                 'Units': point.units,
@@ -435,11 +435,11 @@ def main():
     end_date = generator.end_datetime
     
     # Inject modular anomalies at strategic times
-    # Anomaly 1: Door left open during day shift (2 days ago, afternoon)
-    anomaly1_time = (end_date - timedelta(days=2)).replace(hour=14, minute=30)
+    # Anomaly 1: Door left open during day shift (YESTERDAY afternoon - easy to find!)
+    anomaly1_time = (end_date - timedelta(days=1)).replace(hour=14, minute=30)
     generator.inject_anomaly_prolonged_door_open(
         anomaly1_time.strftime("%Y-%m-%d %H:%M"), 
-        duration_minutes=18
+        duration_minutes=19  # 19 minutes for the $47 cost calculation
     )
     
     # Anomaly 2: Compressor failure during night (4 days ago, early morning)
@@ -456,8 +456,8 @@ def main():
         duration_hours=4
     )
     
-    # Anomaly 4: Power fluctuations (1 day ago, late morning)
-    anomaly4_time = (end_date - timedelta(days=1)).replace(hour=11, minute=45)
+    # Anomaly 4: Power fluctuations (2 days ago, late morning)
+    anomaly4_time = (end_date - timedelta(days=2)).replace(hour=11, minute=45)
     generator.inject_anomaly_power_fluctuation(
         anomaly4_time.strftime("%Y-%m-%d %H:%M"), 
         duration_minutes=25
@@ -479,7 +479,7 @@ def main():
     
     # Show anomaly timing for reference
     print(f"\n=== Injected Anomalies ===")
-    print(f"1. Prolonged door open: {anomaly1_time.strftime('%Y-%m-%d %H:%M')} (18 min)")
+    print(f"1. Prolonged door open: {anomaly1_time.strftime('%Y-%m-%d %H:%M')} (19 min)")
     print(f"2. Compressor failure: {anomaly2_time.strftime('%Y-%m-%d %H:%M')} (55 min)")
     print(f"3. Sensor flatline: {anomaly3_time.strftime('%Y-%m-%d %H:%M')} (4 hours)")
     print(f"4. Power fluctuations: {anomaly4_time.strftime('%Y-%m-%d %H:%M')} (25 min)")
