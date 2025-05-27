@@ -46,6 +46,7 @@ from src.tool_models import (
     BaseToolResult
 )
 from src.confidence_scorer import score_evidence
+from src.tools.build_report import build_event_timeline, build_business_impact
 
 logger = logging.getLogger(__name__)
 
@@ -100,8 +101,29 @@ STRATEGY:
   2. Detect anomalies in the primary tag within the established investigation_window. If no anomalies found, consider retrying detect_numeric_anomalies with a lower threshold (e.g., 2.0 or 2.5).
   3. Search related tags (door, compressor...) and detect anomalies or flips within the investigation_window.
   4. Call test_causality on promising cause/effect pairs within the investigation_window.
-  5. Adjust thresholds or choose new tags if confidence is stagnant. If initial window is unhelpful and confidence is low after a few steps, consider calling find_interesting_window again, perhaps with a different primary_tag or window_hours (this may override a window from parse_time_range if necessary).
-  6. When confidence >=0.9 or you have no more meaningful actions, call function "finish_investigation".
+  5. Adjust thresholds or choose new tags if confidence is stagnant. If initial window is unhelpful and confidence is low after a few steps, consider calling find_interesting_window again, perhaps with a different primary_tag or window_hours (this may override a window from parse_time_range if necessary). When confidence >=0.9 or you have no more meaningful actions, call function "finish_investigation".
+  6. CRITICAL for finish_investigation: You MUST populate the 'event_timeline_summary' with at least 3 chronological events and the 'business_impact_summary' with all its required keys (total_cost_usd, energy_cost_usd, product_risk_usd, severity_level). Failure to provide these complete fields will result in an error and a retry.
+
+  EXAMPLE of the required JSON when you finally call `finish_investigation`:
+
+  {
+    "summary_version": "0.1",
+    "root_cause_statement": "…one-sentence conclusion…",
+    "event_timeline_summary": [
+      {"time": "2025-05-27T18:00:00Z", "description": "Investigation started"},
+      {"time": "2025-05-27T18:05:42Z", "description": "Detected freezer door left open"},
+      {"time": "2025-05-27T18:10:30Z", "description": "Investigation concluded"}
+    ],
+    "business_impact_summary": {
+      "total_cost_usd": 12.5,
+      "energy_cost_usd": 7.0,
+      "product_risk_usd": 5.5,
+      "severity_level": "medium",
+      "details": "Door open caused a temperature excursion"
+    },
+    "recommendations": ["Install door alarm", "Brief staff on procedure"],
+    "final_confidence_score": 0.92
+  }
 
 REMINDER: One tool call per turn. Use start_time/end_time from the established investigation_window for tools that require it. Choose tools deterministically. Return ISO-8601 UTC timestamps only.
 """
@@ -419,6 +441,56 @@ REMINDER: One tool call per turn. Use start_time/end_time from the established i
             logger.warning(f"Could not retrieve data bounds for tag {tag} via get_data_time_range: {e}")
             return None, None
 
+    # --- Tag Validation --------------------------------------------------
+    def _ensure_valid_tag(self, tag_name: str, fallback_query: str) -> str:
+        """
+        Validate *tag_name* against the glossary.
+
+        • If the tag already exists, return it unchanged.  
+        • Otherwise perform a semantic lookup using *fallback_query*.  
+        • Prefer a replacement that shares the same suffix segment
+          (everything after the last '.') because this often indicates the
+          measurement type, e.g. `STATUS`, `POWER_KW`, `TEMP.INTERNAL_C`.
+        • If no candidate shares the suffix, fall back to the highest‑scoring
+          candidate returned by the glossary.
+
+        Raises
+        ------
+        ValueError
+            If the glossary cannot provide any suitable fallback.
+        """
+        # Fast path – exact match
+        if self.tag_glossary.get_tag_info(tag_name):
+            return tag_name
+
+        # Desired suffix for heuristic match
+        suffix: Optional[str] = tag_name.split('.')[-1] if '.' in tag_name else None
+
+        # Semantic fallback search
+        candidates = self.tag_glossary.search_tags(fallback_query, top_k=5)
+        if not candidates:
+            raise ValueError(
+                f"Tag '{tag_name}' not found in glossary and no fallback match available."
+            )
+
+        # Try to keep the same suffix (value type / signal intent)
+        best_tag = None
+        if suffix:
+            for cand in candidates:
+                if cand["tag"].split('.')[-1] == suffix:
+                    best_tag = cand["tag"]
+                    break
+
+        # Fallback to top candidate if suffix heuristic failed
+        if best_tag is None:
+            best_tag = candidates[0]["tag"]
+
+        logger.warning(
+            "Tag '%s' not found – substituting with '%s' returned by glossary semantic search.",
+            tag_name, best_tag,
+        )
+        return best_tag
+
     def _validate_and_clamp_window(
         self,
         tag: str, 
@@ -493,7 +565,24 @@ REMINDER: One tool call per turn. Use start_time/end_time from the established i
             arg_model_pydantic = self.tool_argument_models.get(tool_name)
             assert arg_model_pydantic, f"No Pydantic argument model found for tool: {tool_name}"
             validated_args_model = arg_model_pydantic(**parsed_args_for_log)
+            tag_fields = ["tag", "primary_tag", "cause_tag", "effect_tag"]
+            for f in tag_fields:
+                if f in parsed_args_for_log and parsed_args_for_log[f]:
+                    parsed_args_for_log[f] = self._ensure_valid_tag(
+                        parsed_args_for_log[f],
+                        self.original_query        # always supply a fallback
+                    )
+            # then rebuild validated_args_model with the fixed tags
+            validated_args_model = arg_model_pydantic(**parsed_args_for_log)
             current_args_for_tool_call = validated_args_model.model_dump()
+
+            # ---- Tag existence guard‑rail ----
+            for key in ("primary_tag", "tag", "cause_tag", "effect_tag"):
+                if key in current_args_for_tool_call and current_args_for_tool_call[key]:
+                    current_args_for_tool_call[key] = self._ensure_valid_tag(
+                        current_args_for_tool_call[key],
+                        self.original_query        # <- fallback here too
+                    )
 
             tool_sig = self._calculate_tool_signature(tool_name, current_args_for_tool_call)
             is_duplicate = False
@@ -819,23 +908,36 @@ REMINDER: One tool call per turn. Use start_time/end_time from the established i
             if llm_final_call.function_call and llm_final_call.function_call.name == "finish_investigation":
                 final_args_str = llm_final_call.function_call.arguments
                 logger.info(f"LLM provided finish_investigation arguments: {final_args_str}")
-                try:
-                    report_data_args = orjson.loads(final_args_str)
-                    report_data = FinishInvestigationArgs(**report_data_args).model_dump()
-                    final_status = status_override or "completed_llm_summary"
-                    return {
-                        **report_data,
-                        "status": final_status,
-                        "orchestrator_confidence_before_summary": self.current_confidence,
-                        "total_steps": self.current_step_count,
-                        "total_cost_usd": round(self.estimated_cost_usd, 4)
-                    }
-                except Exception as parse_ex:
-                    logger.error(f"Error parsing finish_investigation args from LLM: {parse_ex}. Args: {final_args_str}")
-                    return {"error": "Final report parsing error.", "details": str(parse_ex), "raw_llm_args": final_args_str, "status": "halted_finish_parse_error"}
-            else:
-                logger.error(f"LLM failed forced call to finish_investigation. Response: {llm_final_call}")
-                return {"error": "Final report generation failed: LLM did not use finish_investigation.", "status": "halted_finish_no_forced_call"}
+
+                # ---------- Pre‑validate & complete ---------- #
+                raw_args = orjson.loads(final_args_str)
+
+                # Ensure timeline has ≥3 events
+                if "event_timeline_summary" not in raw_args or len(raw_args.get("event_timeline_summary", [])) < 3:
+                    raw_args["event_timeline_summary"] = build_event_timeline(self.evidence)
+
+                # Ensure we have a business‑impact section
+                impact_ev = next(
+                    (
+                        ev.get("data")
+                        for ev in reversed(self.evidence)
+                        if ev.get("role") == "function" and ev.get("name") == "calculate_impact"
+                    ),
+                    None,
+                )
+                if "business_impact_summary" not in raw_args:
+                    raw_args["business_impact_summary"] = build_business_impact(impact_ev)
+
+                # ---------- Strict schema validation ---------- #
+                report_data = FinishInvestigationArgs(**raw_args).model_dump()
+                final_status = status_override or "completed_llm_summary"
+                return {
+                    **report_data,
+                    "status": final_status,
+                    "orchestrator_confidence_before_summary": self.current_confidence,
+                    "total_steps": self.current_step_count,
+                    "total_cost_usd": round(self.estimated_cost_usd, 4)
+                }
         except Exception as e:
             logger.exception("Error during final report LLM call.")
             return {"error": "Exception during final report generation.", "details": str(e), "status": "halted_final_report_api_call"}

@@ -80,45 +80,38 @@ class FinishInvestigationArgs(BaseToolArguments):
     """
     summary_version: str = Field("0.1", frozen=True, description="Version of the summary data structure provided by the LLM.")
     root_cause_statement: str = Field(..., description="A concise (1-3 sentences) explanation of the primary root cause identified.")
-    event_timeline_summary: Optional[List[Dict[str, Any]]] = Field(default_factory=list, description="A chronological list of key events. Each event: {'time': ISO_UTC_str, 'description': str}.")
-    business_impact_summary: Optional[Dict[str, Any]] = Field(default_factory=dict, description="Summary of business impact. Expected keys: 'total_cost_usd', 'energy_cost_usd', 'product_risk_usd', 'severity_level'.")
+    event_timeline_summary: Optional[List[Dict[str, Any]]] = Field(
+        default_factory=list,
+        description="Chronological list of key events covering trigger, response, and resolution. Each event: {'time': ISO_UTC_str, 'description': str}. Must contain at least 3 events if provided."
+    )
+    business_impact_summary: Optional[Dict[str, Any]] = Field(
+        default_factory=dict,
+        description="Summary of business impact. Expected keys: 'total_cost_usd', 'energy_cost_usd', 'product_risk_usd', 'severity_level'. All keys must be present if summary is provided."
+    )
     recommendations: List[str] = Field(..., min_length=1, description="A list of 1-3 actionable recommendations.")
     final_confidence_score: float = Field(..., ge=0.0, le=1.0, description="The overall confidence score (0.0-1.0) LLM has in its findings.")
 
     @model_validator(mode='after')
-    def populate_default_summaries_if_empty(cls, values: Any) -> Any:
-        if isinstance(values, dict): # Pydantic v2 gives a dict for model_dump typically
-            timeline = values.get('event_timeline_summary')
-            impact = values.get('business_impact_summary')
+    def validate_required_summaries(cls, model: 'FinishInvestigationArgs') -> 'FinishInvestigationArgs':
+        """
+        Ensures the LLM supplies a timeline with >=3 events and a fully-populated
+        business impact summary if these fields are provided.
+        Raises ValueError if validation fails.
+        """
+        timeline = model.event_timeline_summary if model.event_timeline_summary is not None else []
+        impact = model.business_impact_summary if model.business_impact_summary is not None else {}
 
-            if not timeline: # Empty list or None
-                values['event_timeline_summary'] = [
-                    {"time": datetime.now(timezone.utc).isoformat(), "description": "No specific timeline events provided by LLM."}
-                ]
-            
-            if not impact: # Empty dict or None
-                values['business_impact_summary'] = {
-                    "total_cost_usd": 0.0,
-                    "energy_cost_usd": 0.0,
-                    "product_risk_usd": 0.0,
-                    "severity_level": "unknown",
-                    "details": "No specific business impact provided by LLM."
-                }
-        # If `values` is the model instance itself (can happen depending on how validator is called or Pydantic version nuances)
-        elif hasattr(values, 'event_timeline_summary') and hasattr(values, 'business_impact_summary'):
-            if not values.event_timeline_summary:
-                values.event_timeline_summary = [
-                    {"time": datetime.now(timezone.utc).isoformat(), "description": "No specific timeline events provided by LLM."}
-                ]
-            if not values.business_impact_summary:
-                values.business_impact_summary = {
-                    "total_cost_usd": 0.0,
-                    "energy_cost_usd": 0.0,
-                    "product_risk_usd": 0.0,
-                    "severity_level": "unknown",
-                    "details": "No specific business impact provided by LLM."
-                }
-        return values
+        if not timeline or len(timeline) < 3:
+            raise ValueError("event_timeline_summary must be provided and contain at least 3 events.")
+
+        required_impact_keys = {"total_cost_usd", "energy_cost_usd", "product_risk_usd", "severity_level"}
+        if not impact or required_impact_keys - set(impact.keys()):
+            missing_keys = required_impact_keys - set(impact.keys())
+            raise ValueError(
+                f"business_impact_summary must be provided and include all required keys. Missing: {sorted(list(missing_keys)) if missing_keys else 'None (likely empty dict provided)'}"
+            )
+
+        return model
 
 class ParseTimeRangeArgs(BaseModel):
     """

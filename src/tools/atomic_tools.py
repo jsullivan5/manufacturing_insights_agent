@@ -29,7 +29,30 @@ from .correlation import cross_corr, correlate_tags
 from .data_loader import load_data, get_data_time_range
 
 # Import tag intelligence
+
 from .tag_intel import get_tag_metadata, get_value_type, is_anomaly
+
+# ------------------------------------------------------------------
+# Tag metadata helper (alert/high state & thresholds)
+from src.glossary import TagGlossary
+
+_glossary_singleton = TagGlossary()
+
+def _alert_state(tag_name: str) -> int | None:
+    """
+    Return 1 or 0 if the glossary defines which binary value means
+    "alert / on / high" for this tag, otherwise None.
+    """
+    info = _glossary_singleton.get_tag_info(tag_name)
+    if not info:
+        return None
+    val = str(info.alert_state).lower() if getattr(info, "alert_state", None) is not None else ""
+    if val in {"1", "high", "open", "true", "on"}:
+        return 1
+    if val in {"0", "low", "closed", "false", "off"}:
+        return 0
+    return None
+# ------------------------------------------------------------------
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -308,6 +331,10 @@ def detect_binary_flips(
 
     df['state'] = df['Value'].apply(robust_to_binary)
     df = df.sort_values('Timestamp') # Ensure correct order for diff
+    # Resolve which numeric value represents the "alert/high" state.
+    alert_on_value = _alert_state(tag)
+    if alert_on_value is None:
+        alert_on_value = 1  # fallback to previous assumption
     
     # Detect changes using diff
     df['prev_state'] = df['state'].diff() # This will be NaN for first, 1 for 0->1, -1 for 1->0, 0 for no change
@@ -348,13 +375,13 @@ def detect_binary_flips(
             duration_seconds = (current_ts - last_change_ts).total_seconds()
             duration_minutes = duration_seconds / 60.0
             
-            if last_state == 1: # The state that just *ended* was 'high'
+            if last_state == alert_on_value: # The state that just *ended* was 'high'
                 total_high_duration += duration_minutes
             
             desc_key = "opened" if "DOOR" in tag.upper() else ("started" if "COMPRESSOR" in tag.upper() else "went_high")
-            if current_state == 0: # Transition to low (meaning previous state was high and it just ended)
+            if current_state == (1 - alert_on_value): # Transition to low (meaning previous state was high and it just ended)
                  desc_key = "closed" if "DOOR" in tag.upper() else ("stopped" if "COMPRESSOR" in tag.upper() else "went_low")
-            elif current_state == 1: # Transition to high
+            elif current_state == alert_on_value: # Transition to high
                  pass # desc_key already set for "went_high" like events
 
             changes.append({
@@ -371,7 +398,7 @@ def detect_binary_flips(
     if len(df) > 0:
         final_duration_seconds = (df['Timestamp'].iloc[-1] - last_change_ts).total_seconds()
         final_duration_minutes = final_duration_seconds / 60.0
-        if last_state == 1:
+        if last_state == alert_on_value:
             total_high_duration += final_duration_minutes
 
     # Continuous high event detection (from the start of the window)
@@ -379,11 +406,11 @@ def detect_binary_flips(
     first_point_timestamp = df['Timestamp'].iloc[0]
     initial_state_at_window_start = df['state'].iloc[0]
 
-    if initial_state_at_window_start == 1:
+    if initial_state_at_window_start == alert_on_value:
         first_change_to_low = None
         # Check if any actual flips to low occurred
         for chg in changes:
-            if chg['to_state'] == 0:
+            if chg['to_state'] == (1 - alert_on_value):
                 # Parse the timestamp string from the change event into a datetime object
                 chg_ts_str = chg.get('timestamp')
                 if chg_ts_str:
@@ -408,7 +435,7 @@ def detect_binary_flips(
     
     # If no flips were detected, but it started high and qualified for continuous_high_event
     # it means the state was consistently high for the whole period.
-    if not changes and initial_state_at_window_start == 1 and continuous_high_event:
+    if not changes and initial_state_at_window_start == alert_on_value and continuous_high_event:
         logger.info(f"No explicit flips detected for {tag}, but was continuously high. Event: {continuous_high_event}")
         # The continuous_high_event already captures this.
 
@@ -416,7 +443,7 @@ def detect_binary_flips(
     if continuous_high_event: severity_score = max(severity_score, 0.5)
 
     # User-suggested block: Ensure continuous_high_event is set if no changes and started high
-    if not changes and initial_state_at_window_start == 1:
+    if not changes and initial_state_at_window_start == alert_on_value:
         # Calculate duration from the first point to the last point in the DataFrame
         duration_if_continuously_high = (df['Timestamp'].iloc[-1] - df['Timestamp'].iloc[0]).total_seconds() / 60.0
         if duration_if_continuously_high >= min_continuous_high_minutes:
@@ -430,7 +457,7 @@ def detect_binary_flips(
             logger.info(f"Fallback: Set continuous_high_event for {tag} as no flips detected and started high. Event: {continuous_high_event}")
 
     # Fallback: no flips, started high, stayed high ≥ min_continuous_high_minutes
-        if not changes and df['state'].iat[0] == 1:
+        if not changes and df['state'].iat[0] == alert_on_value:
             duration = (df['Timestamp'].iat[-1] - df['Timestamp'].iat[0]).total_seconds() / 60
             if duration >= min_continuous_high_minutes:
                 continuous_high_event = {
@@ -793,7 +820,7 @@ def calculate_impact(
     event_type: str,
     duration_minutes: float,
     severity: float = 1.0,
-    price_per_kwh: float = ENERGY_COST_KWH,
+    price_per_kwh: float | None = None,
     **kwargs
 ) -> Dict[str, Any]:
     """
@@ -803,11 +830,17 @@ def calculate_impact(
         event_type: Type of event (e.g., 'door_open', 'compressor_failure')
         duration_minutes: Duration of the event in minutes
         severity: Severity multiplier (default: 1.0)
-        price_per_kwh: Energy cost in $ per kWh
+        price_per_kwh: Energy cost in $ per kWh (defaults to ENERGY_COST_KWH if omitted)
         
     Returns:
         BusinessImpact with cost and severity assessment
     """
+    # ------------------------------------------------------------------
+    # Ensure we have a valid energy price; fall back to the global default
+    # if the caller didn't provide one.
+    if price_per_kwh is None:
+        price_per_kwh = ENERGY_COST_KWH
+    # ------------------------------------------------------------------
     energy_cost = 0.0
     product_risk = 0.0
     description = ""

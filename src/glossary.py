@@ -43,6 +43,10 @@ class TagInfo:
     description: str
     unit: str
     category: str
+    value_type: str = ""
+    alert_state: str = ""
+    high_threshold: float | None = None
+    low_threshold: float | None = None
 
 class TagGlossary:
     """
@@ -77,7 +81,11 @@ class TagGlossary:
                     tag=row['tag'],
                     description=row['description'],
                     unit=row['unit'],
-                    category=row['category']
+                    category=row['category'],
+                    value_type=row.get('value_type', ''),
+                    alert_state=row.get('alert_state', ''),
+                    high_threshold=row.get('high_threshold', None),
+                    low_threshold=row.get('low_threshold', None)
                 )
                 self.tags.append(tag)
             
@@ -126,7 +134,11 @@ class TagGlossary:
                     "tag": tag.tag,
                     "description": tag.description,
                     "unit": tag.unit,
-                    "category": tag.category
+                    "category": tag.category,
+                    "value_type": tag.value_type,
+                    "alert_state": tag.alert_state,
+                    "high_threshold": tag.high_threshold,
+                    "low_threshold": tag.low_threshold
                 })
                 
                 ids.append(f"tag_{i}")
@@ -208,7 +220,11 @@ class TagGlossary:
                 'tag': tag.tag,
                 'description': tag.description,
                 'unit': tag.unit,
-                'category': tag.category
+                'category': tag.category,
+                'value_type': tag.value_type,
+                'alert_state': tag.alert_state,
+                'high_threshold': tag.high_threshold,
+                'low_threshold': tag.low_threshold
             }
             for tag in self.tags
         ]
