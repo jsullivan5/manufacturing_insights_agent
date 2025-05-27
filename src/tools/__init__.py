@@ -1,29 +1,66 @@
 """
-Manufacturing Copilot (MCP) - Tool Functions Module
+Manufacturing Copilot (MCP) - Tools Package
 
-This module provides the core analytical tools for processing time-series data
-and generating insights for the Manufacturing Copilot CLI.
-
-Tools are designed to be modular and composable, enabling complex analysis
-workflows from simple building blocks.
+Provides atomic data analysis tools for investigating manufacturing time series data.
+Each tool performs a specific function and returns structured output that can be
+combined by the root cause agent to build causal explanations.
 """
 
-from .data_loader import load_data
+# Import atomic tools and schemas
+from .atomic_tools import (
+    detect_numeric_anomalies,
+    detect_binary_flips,
+    detect_change_points,
+    test_causality,
+    calculate_impact,
+    create_event_sequence
+)
+
+# Import tag intelligence
+from .tag_intel import (
+    get_tag_intelligence,
+    get_tag_metadata,
+    get_value_type,
+    get_related_tags,
+    is_anomaly
+)
+
+# Import data loader
+from .data_loader import (
+    load_data,
+    get_available_tags,
+    get_data_time_range
+)
+
+# Import legacy tools (for backward compatibility)
+from .anomaly_detection import detect_spike
+from .correlation import find_correlated_tags, cross_corr
 from .metrics import summarize_metric
-from .anomaly_detection import detect_spike, detect_consecutive_anomalies, analyze_anomaly_patterns
-from .correlation import correlate_tags, find_correlated_tags
-from .visualization import generate_chart, generate_correlation_chart
-from .quality import quality_summary
 
 __all__ = [
+    # Atomic tools
+    'detect_numeric_anomalies',
+    'detect_binary_flips',
+    'detect_change_points',
+    'test_causality',
+    'calculate_impact',
+    'create_event_sequence',
+    
+    # Tag intelligence
+    'get_tag_intelligence',
+    'get_tag_metadata',
+    'get_value_type',
+    'get_related_tags',
+    'is_anomaly',
+    
+    # Data loading
     'load_data',
-    'summarize_metric', 
+    'get_available_tags',
+    'get_data_time_range',
+    
+    # Legacy tools
     'detect_spike',
-    'detect_consecutive_anomalies',
-    'analyze_anomaly_patterns',
-    'correlate_tags',
     'find_correlated_tags',
-    'generate_chart',
-    'generate_correlation_chart',
-    'quality_summary'
+    'summarize_metric',
+    'cross_corr'
 ] 
