@@ -51,16 +51,17 @@ class ManufacturingCopilot:
         
         print("✅ Ready for natural language queries!")
     
-    def process_query(self, query: str, demo_mode: bool = False) -> None:
+    def process_query(self, query: str, demo_mode: bool = False, use_detective: bool = False) -> None:
         """
         Process a natural language query and provide intelligent insights.
         
         Args:
             query: Natural language question about manufacturing operations
             demo_mode: If True, pause at key points for demo narration
+            use_detective: If True, use AI Detective Agent for iterative investigation
         """
         try:
-            result = llm_interpret_query(query, demo_mode=demo_mode)
+            result = llm_interpret_query(query, demo_mode=demo_mode, use_detective=use_detective)
             # The streaming output is already printed, so we just need to handle the final result
             if result != "Analysis completed successfully. See insights above.":
                 print(result)
@@ -84,6 +85,10 @@ Examples:
   
 Demo Mode (for presentations/videos):
   python src/mcp.py --demo-mode "What caused the temperature problems yesterday?"
+  
+AI Detective Agent (for investigative reasoning):
+  python src/mcp.py --detective "Why did the freezer temperature spike?"
+  python src/mcp.py --detective --demo-mode "What caused the compressor failure?"
         """
     )
     
@@ -106,6 +111,12 @@ Demo Mode (for presentations/videos):
         help="Enable demo mode with pauses for video narration"
     )
     
+    parser.add_argument(
+        "--detective",
+        action="store_true",
+        help="Use AI Detective Agent for iterative investigation"
+    )
+    
     args = parser.parse_args()
     
     # Set logging level
@@ -115,7 +126,7 @@ Demo Mode (for presentations/videos):
     # Initialize and run MCP
     try:
         mcp = ManufacturingCopilot()
-        mcp.process_query(args.query, demo_mode=args.demo_mode)
+        mcp.process_query(args.query, demo_mode=args.demo_mode, use_detective=args.detective)
         
     except KeyboardInterrupt:
         print("\n🛑 Operation cancelled by user")

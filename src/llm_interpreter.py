@@ -38,6 +38,7 @@ from src.tools import (
     generate_chart
 )
 from src.tools.data_loader import get_data_time_range, get_available_tags
+from src.ai_detective import AIDetective
 
 # Configure logging - suppress verbose HTTP and telemetry logs
 logging.basicConfig(
@@ -554,7 +555,7 @@ def demo_pause(message: str) -> None:
     input()
 
 
-def llm_interpret_query(query: str, demo_mode: bool = False) -> str:
+def llm_interpret_query(query: str, demo_mode: bool = False, use_detective: bool = False) -> str:
     """
     Main LLM-powered query interpretation function.
     
@@ -566,10 +567,36 @@ def llm_interpret_query(query: str, demo_mode: bool = False) -> str:
     Args:
         query: Natural language query about manufacturing operations
         demo_mode: If True, pause at key points for demo narration
+        use_detective: If True, use AI Detective Agent for iterative investigation
         
     Returns:
         Expert-level analysis and recommendations
     """
+    
+    # Check if we should use the AI Detective Agent
+    if use_detective or any(keyword in query.lower() for keyword in ['investigate', 'detective', 'what caused', 'why did', 'root cause']):
+        print("\n🕵️ SWITCHING TO AI DETECTIVE AGENT")
+        print("=" * 60)
+        print("This query requires investigative reasoning - activating AI Detective...")
+        
+        try:
+            detective = AIDetective()
+            case = detective.investigate_anomaly(query, demo_mode=demo_mode)
+            
+            print("\n📋 CASE SUMMARY")
+            print("=" * 60)
+            print(f"Final Confidence: {case.final_confidence}%")
+            print(f"Investigation Steps: {len(case.investigation_steps)}")
+            
+            return f"✅ **AI Detective Case Resolved** with {case.final_confidence}% confidence. See investigation details above."
+            
+        except Exception as e:
+            logger.error(f"AI Detective failed: {e}")
+            print(f"❌ AI Detective encountered an error: {e}")
+            print("🔄 Falling back to traditional analysis...")
+            # Fall through to traditional analysis
+    
+    # Traditional analysis pipeline (existing code)
     try:
         print("\n🔍 QUERY PARSING")
         print("=" * 60)
@@ -585,8 +612,11 @@ def llm_interpret_query(query: str, demo_mode: bool = False) -> str:
         print("=" * 60)
         print(f"Primary Tag: {plan.primary_tag}")
         print(f"Time Range: {plan.start_time.strftime('%Y-%m-%d %H:%M')} → {plan.end_time.strftime('%Y-%m-%d %H:%M')}")
-        print(f"Analysis Steps: {', '.join(plan.analysis_steps)}")
-        print(f"Reasoning: {plan.reasoning}")
+        print("\nAnalysis Steps:")
+        for step in plan.analysis_steps:
+            print(f"  • {step}")
+        print("\nReasoning:\n")
+        print(f"  {plan.reasoning}")
         
         # Step 2: Validate the analysis plan
         can_continue, error_reason = validate_analysis_plan(plan)
