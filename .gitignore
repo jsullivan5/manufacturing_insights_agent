@@ -5,6 +5,9 @@ charts/**
 git_ingest_output.md
 .DS_Store
 
+# Logs
+logs/**/*.json
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

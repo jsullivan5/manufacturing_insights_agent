@@ -6,8 +6,7 @@
 # The output file can be used by LLMs for repository-wide analysis, evaluation and refactoring.
 
 OUTFILE="git_ingest_output.md"
-echo -e "## Directory structure:\n" > "$OUTFILE"
-# tree -I 'node_modules|.git|.next|dist|build|*.log|*.png|*.jpg|*.jpeg|*.webp|*.svg|*.ico|pnpm-lock.yaml' -a -F >> "$OUTFILE"
+echo -e "## Directory structure:\n" > "$OUTFILE"    
 git ls-files | grep -v -E '^\.cursor/|^\.documentation/' | tree --fromfile >> "$OUTFILE"
 echo -e "\n\n## Files Content:\n" >> "$OUTFILE"
 

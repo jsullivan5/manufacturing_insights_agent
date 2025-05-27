@@ -12,7 +12,109 @@ from datetime import datetime, timedelta
 from typing import List, Dict, Tuple, Optional
 import logging
 
+# Local imports
+from .data_loader import load_data
+
 logger = logging.getLogger(__name__)
+
+def cross_corr(tag_a: str, tag_b: str, window_start: datetime, window_end: datetime, max_lag: int = 10,
+               cause_data: Optional[pd.DataFrame] = None, effect_data: Optional[pd.DataFrame] = None) -> Dict:
+    """
+    Window-based lag correlation to find causal relationships.
+    
+    Tests correlation between two tags in a specific time window 
+    with different time lags to identify cause → effect relationships.
+    Accepts pre-loaded dataframes for cause and effect to avoid re-loading.
+    
+    Args:
+        tag_a: Potential cause tag
+        tag_b: Potential effect tag
+        window_start: Start of analysis window
+        window_end: End of analysis window
+        max_lag: Maximum lag in minutes to test
+        cause_data: Optional pre-loaded DataFrame for tag_a
+        effect_data: Optional pre-loaded DataFrame for tag_b
+        
+    Returns:
+        Dictionary with lag, correlation and significance
+    """
+    try:
+        # Load data for both tags in the specified window if not provided
+        df_a = cause_data if cause_data is not None else load_data(tag_a, window_start, window_end)
+        df_b = effect_data if effect_data is not None else load_data(tag_b, window_start, window_end)
+        
+        if df_a.empty or df_b.empty:
+            return {'lag': 0, 'correlation': 0.0, 'significance': 'no_data'}
+        
+        # Extract the series - use 'Value' column and set timestamp as index
+        df_a_indexed = df_a.set_index('Timestamp')['Value'].dropna()
+        df_b_indexed = df_b.set_index('Timestamp')['Value'].dropna()
+        
+        if len(df_a_indexed) < 10 or len(df_b_indexed) < 10:
+            return {'lag': 0, 'correlation': 0.0, 'significance': 'insufficient_data'}
+        
+        # Resample to common 1-minute frequency and align
+        series_a_resampled = df_a_indexed.resample('1min').mean().ffill()
+        series_b_resampled = df_b_indexed.resample('1min').mean().ffill()
+        
+        # Find common time range
+        common_start = max(series_a_resampled.index.min(), series_b_resampled.index.min())
+        common_end = min(series_a_resampled.index.max(), series_b_resampled.index.max())
+        
+        if common_start >= common_end:
+            return {'lag': 0, 'correlation': 0.0, 'significance': 'no_overlap'}
+        
+        # Align both series to common time range
+        series_a_aligned = series_a_resampled.loc[common_start:common_end]
+        series_b_aligned = series_b_resampled.loc[common_start:common_end]
+        
+        best_result = {'lag': 0, 'correlation': 0.0, 'significance': 'weak'}
+        
+        # Test different time lags
+        for lag in range(0, max_lag + 1):
+            try:
+                # Shift tag_a forward by lag minutes to test if it predicts tag_b
+                if lag == 0:
+                    shifted_a = series_a_aligned
+                else:
+                    shifted_a = series_a_aligned.shift(lag)
+                
+                # Remove NaN values created by shifting
+                valid_mask = ~(shifted_a.isna() | series_b_aligned.isna())
+                if valid_mask.sum() < 10:  # Need at least 10 valid points
+                    continue
+                
+                shifted_a_clean = shifted_a[valid_mask]
+                series_b_clean = series_b_aligned[valid_mask]
+                
+                # Calculate correlation
+                correlation = shifted_a_clean.corr(series_b_clean)
+                
+                if not pd.isna(correlation) and abs(correlation) > abs(best_result['correlation']):
+                    best_result['lag'] = lag
+                    best_result['correlation'] = correlation
+                    
+                    # Assess significance
+                    if abs(correlation) > 0.7:
+                        best_result['significance'] = 'strong'
+                    elif abs(correlation) > 0.4:
+                        best_result['significance'] = 'moderate'
+                    else:
+                        best_result['significance'] = 'weak'
+                        
+            except Exception as lag_error:
+                logger.debug(f"Error at lag {lag}: {lag_error}")
+                continue
+        
+        # Expose with both key naming patterns for consistency across different modules
+        best_result['best_correlation'] = best_result['correlation']
+        best_result['best_lag'] = best_result['lag']
+        
+        return best_result
+        
+    except Exception as e:
+        logger.error(f"Error in cross_corr: {e}")
+        return {'lag': 0, 'correlation': 0.0, 'significance': 'error'}
 
 def correlate_tags(primary_df: pd.DataFrame, candidate_dfs: List[pd.DataFrame], 
                   window: Tuple[datetime, datetime]) -> List[Dict]:
