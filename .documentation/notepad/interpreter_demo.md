@@ -11,7 +11,7 @@ The Manufacturing Copilot now includes an intelligent query interpreter that can
 
 ## Key Features
 
-### ✅ Implemented
+### Implemented
 - **Pydantic QueryParams model** with validation
 - **Natural language time parsing** using dateparser
 - **Semantic tag search** integration
@@ -19,7 +19,7 @@ The Manufacturing Copilot now includes an intelligent query interpreter that can
 - **Robust error handling** and fallbacks
 - **Clean markdown output** format
 
-### 🎯 Query Examples
+### Query Examples
 
 | Query | Tag Found | Time Range Parsed |
 |-------|-----------|-------------------|
@@ -45,7 +45,7 @@ python src/mcp.py "Show me freezer temperatures" --legacy
 The interpreter provides concise, actionable summaries:
 
 ```
-✅ Summary for tag: FREEZER01.TEMP.INTERNAL_C
+Summary for tag: FREEZER01.TEMP.INTERNAL_C
 → Time Range: May 22 11:59PM – May 23 11:59PM
 → Mean: -17.1°C | Min: -18.7°C | Max: -13.0°C | Trend: Rising
 → Data Points: 1,441 | Change: -0.9°C (+5.6%)
