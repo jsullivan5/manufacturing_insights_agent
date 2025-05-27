@@ -1,0 +1,30 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# Cursor Guide — “AI Detective” Demo
+
+**Intent**  
+Build a *frontier-tech* demo where an LLM genuinely investigates PI time-series data, uncovers causal chains, and explains business impact. It must **feel organic**, not scripted.
+
+### Guardrails
+1. **No deterministic hacks**  
+   - Do **not** hard-code domain rules, fixed σ thresholds, or canned “door → temp” logic.  
+   - Skip brute-forcing sigma values just to make a pattern appear.
+
+2. **Keep tools neutral & atomic**  
+   - Provide only small utilities (`detect_anomalies`, `cross_corr`, `change_points`, `compute_delta`, etc.).  
+   - Tools return *structured JSON*; they never draw conclusions.
+3. **LLM owns the reasoning loop**  
+   - GPT generates hypotheses, picks tools, interprets results, and iterates until `confidence ≥ 0.9` or `max_steps = 6`.  
+   - Confidence rises only when evidence shows: cause precedes effect, |r| > 0.6, lag ≤ 10 min, physically plausible.
+
+4. **Evidence memory**  
+   - Persist every tool result in `state.evidence`; GPT must reference prior facts and avoid repeating work.
+
+5. **Deliverables**  
+   - Transparent log of investigative steps.  
+   - Final timeline + root cause + quantified $$ impact, framed in plain business language.
+
+Goal: Wow the manufacturing exec with an AI detective that *discovers* (not hard-codes) “Door left open → Temp spike → Compressor surge” — proving next-level operational insight.
