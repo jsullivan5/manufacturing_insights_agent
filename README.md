@@ -1,5 +1,7 @@
 # 🏭 Manufacturing Copilot (MCP)
 
+**▶️ [Watch the Demo Video](https://drive.google.com/file/d/1IKtrB1PaNzqVZhUWzbaJhTUO0GjwGtrF/view?usp=sharing)**
+
 > **AI‑powered root‑cause analysis, anomaly detection, and predictive maintenance for industrial time‑series data—delivered through natural‑language conversations.**
 
 ---
@@ -143,6 +145,19 @@ To see the Manufacturing Copilot in action:
         *(Note: The date "05-23-2025" in the query is relative to when the demo data was generated. The `generate_freezer_data.py` script sets up anomalies based on the current date when it's run. The `parse_time_range` tool and the LLM are designed to interpret such date references correctly against the data's actual timestamp range.)*
 
     Many of the individual Python modules in `src/` (like `glossary.py`, `atomic_tools.py`, `generate_freezer_data.py`) can also be run directly (e.g., `python src/glossary.py`) to see their specific functionalities in action or for debugging.
+
+---
+
+## 🤖 AI-Assisted Development & Process Notes
+
+This project was developed with the assistance of AI coding tools, and some artifacts of that process are included for demonstration purposes:
+
+*   **`.documentation/` Folder:**
+    *   `prompts/`: May contain examples of prompts used to guide the LLM during development or for specific agent behaviors.
+    *   `notepad/`: Contains planning documents, checklists, or scratchpad notes related to feature development, often generated in collaboration with an AI assistant. (For instance, `feature-name.md` files).
+*   **`.cursor/rules/` Folder:** Contains custom instructions (`.mdc` files) used to guide the AI assistant (Gemini 2.5 Pro in this case) to adhere to specific coding standards, project goals, and architectural principles during development.
+
+Typically, such development process artifacts might not be included in a final demo repository, but they are present here to showcase an AI-augmented development workflow and how an "AI pair programmer" can be leveraged effectively.
 
 ---
 
