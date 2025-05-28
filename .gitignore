@@ -4,6 +4,7 @@ data/**
 charts/**
 git_ingest_output.md
 .DS_Store
+**/orchestrator_*.log*
 
 # Logs
 logs/**/*.json
