@@ -249,6 +249,23 @@ def main():
         final_report = orchestrator.run(query)
         display_final_report(final_report)
 
+        # --- Surface any generated charts or other artifacts -----------------
+        #
+        # The orchestrator may attach a list of paths (PNGs, CSVs, etc.) that
+        # were produced during the investigation.  If present, show them so the
+        # user can quickly open / preview the files.
+        #
+        if getattr(orchestrator, "generated_artifacts", None):
+            console.print("\n[bold cyan]📈 Generated Charts & Artifacts[/bold cyan]")
+            for art_path in orchestrator.generated_artifacts:
+                rel = os.path.relpath(art_path)        # shorter than full path
+                label = os.path.basename(art_path)     # just the filename
+                # Use file:// protocol with absolute path for clickable links
+                console.print(
+                    f"• [link=file://{art_path}]{label}[/link]    "
+                    f"([dim]{rel}[/dim])"
+                )
+
     except ValueError as ve:
         console.print(f"[danger]Configuration Error: {ve}[/danger]")
         sys.exit(1)

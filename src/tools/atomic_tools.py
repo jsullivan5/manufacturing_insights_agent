@@ -701,8 +701,8 @@ def detect_change_points(
 def test_causality(
     cause_tag: str,
     effect_tag: str,
-    window_start: Optional[Union[datetime, str]] = None,
-    window_end: Optional[Union[datetime, str]] = None,
+    start_time: Optional[Union[datetime, str]] = None,
+    end_time:   Optional[Union[datetime, str]] = None,
     max_lag_minutes: int = 10,
     **kwargs
 ) -> Dict[str, Any]:
@@ -720,32 +720,32 @@ def test_causality(
         CausalityResult with correlation and lag information
     """
     # Parse string time references
-    window_start = parse_time_reference(window_start)
-    window_end = parse_time_reference(window_end)
+    start_time = parse_time_reference(start_time)
+    end_time   = parse_time_reference(end_time)
     
     # Get time range if not specified
-    if window_start is None or window_end is None:
+    if start_time is None or end_time is None:
         data_range = get_data_time_range()
-        if window_start is None:
-            window_start = data_range['start']
-        if window_end is None:
-            window_end = data_range['end']
+        if start_time is None:
+            start_time = data_range['start']
+        if end_time is None:
+            end_time = data_range['end']
     
     # Load data for both tags
     try:
-        cause_df = load_data(cause_tag, window_start, window_end)
-        effect_df = load_data(effect_tag, window_start, window_end)
+        cause_df = load_data(cause_tag, start_time, end_time)
+        effect_df = load_data(effect_tag, start_time, end_time)
     except Exception as e:
         logger.error(f"Error loading data: {e}")
         return {'error': f"Data loading failed: {e}"}
-    
+
     if cause_df.empty or effect_df.empty:
         return {
             'cause_tag': cause_tag,
             'effect_tag': effect_tag,
             'analysis_window': {
-                'start': iso_z(window_start) if window_start else None,
-                'end': iso_z(window_end) if window_end else None
+                'start': iso_z(start_time) if start_time else None,
+                'end': iso_z(end_time) if end_time else None
             },
             'best_lag_minutes': 0.0,
             'best_correlation': 0.0,
@@ -783,8 +783,8 @@ def test_causality(
         result = cross_corr(
             cause_tag, # Pass original tag name for metadata inside cross_corr if needed
             effect_tag,
-            window_start, # Pass the original window_start datetime
-            window_end,   # Pass the original window_end datetime
+            start_time, # Pass the original start_time datetime
+            end_time,   # Pass the original end_time datetime
             max_lag_minutes,
             cause_data=cause_df_smoothed, # Provide the pre-loaded and smoothed data
             effect_data=effect_df       # Provide the pre-loaded effect data
@@ -793,8 +793,8 @@ def test_causality(
         result = cross_corr(
             cause_tag,
             effect_tag,
-            window_start,
-            window_end,
+            start_time,
+            end_time,
             max_lag_minutes,
             cause_data=cause_df,  # Provide pre-loaded original data
             effect_data=effect_df # Provide pre-loaded original data
@@ -870,8 +870,8 @@ def test_causality(
         'cause_tag': cause_tag,
         'effect_tag': effect_tag,
         'analysis_window': {
-            'start': iso_z(window_start) if window_start else None,
-            'end': iso_z(window_end) if window_end else None
+            'start': iso_z(start_time) if start_time else None,
+            'end': iso_z(end_time) if end_time else None
         },
         'best_lag_minutes': float(lag_minutes),
         'best_correlation': float(correlation),

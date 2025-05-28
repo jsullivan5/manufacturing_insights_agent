@@ -17,6 +17,9 @@ import orjson # For faster JSON operations, especially for logging
 import tiktoken
 import pandas as pd
 
+# Visualization helper for correlation plots
+from src.tools.visualization import generate_correlation_chart
+
 import dotenv
 dotenv.load_dotenv()
 
@@ -50,6 +53,9 @@ from src.tools.build_report import build_event_timeline, build_business_impact
 from src.logger import setup_logging
 
 logger = logging.getLogger(__name__)
+
+# Minimum correlation above which we “freeze” the investigation window
+CORRELATION_LOCK_THRESHOLD: float = 0.50
 
 # --- Custom Exceptions (as per checklist) ---
 class MissingWindowError(Exception):
@@ -149,6 +155,8 @@ REMINDER: One tool call per turn. Use start_time/end_time from the established i
         self.tools: Dict[str, Callable] = self._register_tools()
         self.tool_argument_models: Dict[str, type[pydantic.BaseModel]] = self._load_tool_argument_models()
         self.tool_schemas: List[Dict] = self._generate_and_cache_tool_schemas()
+        # Collect file paths of any charts or artifacts we generate so the CLI can surface them
+        self.generated_artifacts: list[str] = []
         self.evidence_writer_executor = ThreadPoolExecutor(max_workers=1)
         self._reset_run_state()
 
@@ -158,12 +166,51 @@ REMINDER: One tool call per turn. Use start_time/end_time from the established i
         self.evidence: List[Dict] = []
         self.current_confidence: float = 0.0
         self.investigation_window: Optional[Dict[str, str]] = None
+        self.final_window: Optional[Dict[str, str]] = None
         self.current_step_count: int = 0
         self.estimated_cost_usd: float = 0.0
         self.executed_tool_signatures: Set[str] = set()
         self.stale_confidence_counter: int = 0
         self.previous_confidence_for_staleness_check: float = 0.0
+        # also clear any generated‑artifact list
+        self.generated_artifacts = []
         logger.info("Orchestrator run state has been reset.")
+    # ------------------------------------------------------------------  
+    # Helper: generate & register correlation chart
+    def _maybe_plot_correlation(
+        self,
+        cause_tag: str,
+        effect_tag: str,
+        start_time_iso: str,
+        end_time_iso: str,
+    ) -> str | None:
+        """
+        Create a PNG showing the two series plus lagged correlation bands.
+        The image is saved under <evidence_log_dir>/charts/ and the path
+        is returned (and appended to `self.generated_artifacts`).
+
+        Returns
+        -------
+        str | None
+            Absolute file path if successful, else None.
+        """
+        try:
+            output_dir = os.path.join(self.settings.evidence_log_dir, "charts")
+            os.makedirs(output_dir, exist_ok=True)
+            outfile = generate_correlation_chart(
+                cause_tag=cause_tag,
+                effect_tag=effect_tag,
+                start_time=start_time_iso,
+                end_time=end_time_iso,
+                output_dir=output_dir,
+            )
+            if outfile:
+                self.generated_artifacts.append(outfile)
+                logger.info("Correlation chart saved to %s", outfile)
+                return outfile
+        except Exception as exc:
+            logger.warning("Failed to generate correlation chart: %s", exc)
+        return None
 
     def _register_tools(self) -> Dict[str, Callable]:
         """Maps tool names to their callable Python functions."""
@@ -415,7 +462,13 @@ REMINDER: One tool call per turn. Use start_time/end_time from the established i
 
     def _log_evidence_to_file(self, log_payload: Dict[str, Any]):
         try:
-            evidence_file_path = os.path.join(self.settings.evidence_log_dir, f"evidence_{log_payload['run_id']}_{log_payload['step']}_{log_payload['tool_name']}.json")
+            # Use an ISO‑8601 timestamp prefix so files sort chronologically (oldest → newest).
+            ts_prefix = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+            step_padded = f"{log_payload['step']:03d}"  # 001, 002, …
+            evidence_file_path = os.path.join(
+                self.settings.evidence_log_dir,
+                f"{ts_prefix}_{log_payload['run_id']}_{step_padded}_{log_payload['tool_name']}.json"
+            )
             os.makedirs(self.settings.evidence_log_dir, exist_ok=True)
             with open(evidence_file_path, "wb") as f:
                 f.write(orjson.dumps(log_payload, option=orjson.OPT_INDENT_2 | orjson.OPT_SERIALIZE_NUMPY))
@@ -633,19 +686,32 @@ REMINDER: One tool call per turn. Use start_time/end_time from the established i
                         clamped_start, clamped_end = self._validate_and_clamp_window(target_tag_for_window, llm_start_time, llm_end_time, tool_name)
                         current_args_for_tool_call["start_time"] = clamped_start
                         current_args_for_tool_call["end_time"] = clamped_end
-                    elif tool_name in window_dependent_tools: # Not FIW, and LLM didn't provide window args
-                        if self.investigation_window and self.investigation_window.get("start_time") and self.investigation_window.get("end_time"):
-                            logger.info(f"Injecting established investigation window into {tool_name} args: {self.investigation_window}")
+                    elif tool_name in window_dependent_tools:  # Not FIW, and LLM didn't provide window args
+                        # Prefer a “final_window” (frozen after high‑confidence causality),
+                        # otherwise fall back to the current investigation_window.
+                        effective_window = self.final_window or self.investigation_window
+                        if (
+                            effective_window
+                            and effective_window.get("start_time")
+                            and effective_window.get("end_time")
+                        ):
+                            logger.info(
+                                "Injecting window into %s args: %s",
+                                tool_name,
+                                effective_window,
+                            )
                             clamped_start, clamped_end = self._validate_and_clamp_window(
-                                target_tag_for_window, 
-                                self.investigation_window["start_time"], 
-                                self.investigation_window["end_time"], 
-                                tool_name
+                                target_tag_for_window,
+                                effective_window["start_time"],
+                                effective_window["end_time"],
+                                tool_name,  
                             )
                             current_args_for_tool_call["start_time"] = clamped_start
                             current_args_for_tool_call["end_time"] = clamped_end
                         else:
-                            raise MissingWindowError(f"Tool {tool_name} requires a window, but none was provided by LLM and no investigation window is set.")
+                            raise MissingWindowError(
+                                f"Tool {tool_name} requires a window, but none was provided by LLM and no investigation window is set."
+                            )
                     # For find_interesting_window, if no start/end provided by LLM, it's allowed to scan full range (handled by _validate_and_clamp_window with allow_no_initial_window=True if we choose that path)
                     # Current _validate_and_clamp_window needs start/end unless allow_no_initial_window. Let's assume FIW if called with no times will set them from full data range based on its own logic.
                     # The _validate_and_clamp_window call for FIW handles the case where LLM *does* provide start/end for scan range.
@@ -695,6 +761,18 @@ REMINDER: One tool call per turn. Use start_time/end_time from the established i
                     if fiw_start and fiw_end:
                         self.investigation_window = {"start_time": fiw_start, "end_time": fiw_end}
                         logger.info(f"Investigation window UPDATED by find_interesting_window: {self.investigation_window}")
+                # On successful causality test, try to plot correlation
+                if (
+                    tool_name == "test_causality"
+                    and execution_status == "success"
+                    and isinstance(actual_tool_result_data, dict)
+                ):
+                    _ = self._maybe_plot_correlation(
+                        current_args_for_tool_call.get("cause_tag"),
+                        current_args_for_tool_call.get("effect_tag"),
+                        current_args_for_tool_call.get("start_time"),
+                        current_args_for_tool_call.get("end_time"),
+                    )
                 # execution_status remains "success" if no exceptions were raised before this point
 
         except ValueError as ve_clamp_or_parse: # Catches errors from _validate_and_clamp_window or initial orjson.loads
@@ -880,7 +958,8 @@ REMINDER: One tool call per turn. Use start_time/end_time from the established i
                 "status": current_status,
                 "orchestrator_confidence": self.current_confidence,
                 "total_steps": self.current_step_count,
-                "total_cost_usd": round(self.estimated_cost_usd, 4)
+                "total_cost_usd": round(self.estimated_cost_usd, 4),
+                "generated_artifacts": self.generated_artifacts,
             }
 
         summarized_evidence_str = self._summarize_evidence_for_final_report(self.settings.max_tokens_final_report_evidence_summary)
@@ -949,7 +1028,8 @@ REMINDER: One tool call per turn. Use start_time/end_time from the established i
                     "status": final_status,
                     "orchestrator_confidence_before_summary": self.current_confidence,
                     "total_steps": self.current_step_count,
-                    "total_cost_usd": round(self.estimated_cost_usd, 4)
+                    "total_cost_usd": round(self.estimated_cost_usd, 4),
+                    "generated_artifacts": self.generated_artifacts,
                 }
         except Exception as e:
             logger.exception("Error during final report LLM call.")
@@ -1020,4 +1100,4 @@ if __name__ == '__main__':
     except Exception as e:
         print(f"An unexpected error occurred: {e}")
         import traceback
-        traceback.print_exc() 
+        traceback.print_exc()
