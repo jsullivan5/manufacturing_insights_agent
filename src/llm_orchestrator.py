@@ -7,9 +7,9 @@ from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Any, Optional, Callable, Tuple, Set, Literal
 import re
 import copy # For deep copying evidence items
-from decimal import Decimal # Added as per feedback
+from decimal import Decimal
 from concurrent.futures import ThreadPoolExecutor # Added for background I/O
-import argparse # Add argparse import
+import argparse
 
 import openai
 import pydantic
@@ -314,14 +314,6 @@ REMINDER: One tool call per turn. Use start_time/end_time from the established i
             logger.error(f"Failed to save schemas to cache ({cache_path}): {e}")
         
         return generated_schemas
-    
-    # TODO: Add streaming tools
-    # TODO: Implement chart generation tools
-
-    # --- Placeholder for other methods from the checklist ---
-    # _get_tag_type, _build_chat_history, _truncate_value, _compact_state, 
-    # _ask_gpt_for_next_action, _calculate_tool_signature, _execute_tool, 
-    # _initial_tag_inference, _generate_final_report, run
 
     def _get_tag_type(self, tag_name: str) -> Optional[str]:
         metadata = get_tag_metadata(tag_name)

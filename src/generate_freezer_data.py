@@ -127,8 +127,6 @@ class FreezorDataGenerator:
             else:
                 base_prob = 0.002  # ~0.2% chance per minute
         else:
-            # Demo‑mode tweak: completely disable random door openings at night so
-            # the compressor‑failure scenario (≈ 02 AM) is unambiguous.
             base_prob = 0.0     # no chance of door events during night shift
             
         return np.random.random() < base_prob

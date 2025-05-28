@@ -1,5 +1,5 @@
-from pydantic import Field, field_validator # BaseModel is no longer directly used here for Settings
-from pydantic_settings import BaseSettings, SettingsConfigDict # Import BaseSettings
+from pydantic import Field, field_validator
+from pydantic_settings import BaseSettings, SettingsConfigDict # Must use pydantic_settings for env vars
 from typing import Dict, Optional, Any
 from decimal import Decimal, ROUND_HALF_UP
 import os
@@ -22,8 +22,8 @@ class Settings(BaseSettings): # Inherit from BaseSettings
     evidence_log_dir: str = Field("logs/evidence_store", description="Directory to store evidence logs.")
 
     # --- LLM Model Configuration ---
-    planning_model_name: str = Field("gpt-4o-mini") # Removed env here, will be prefixed by MCP_
-    final_report_model_name: str = Field("gpt-4o")   # Removed env here, will be prefixed by MCP_
+    planning_model_name: str = Field("gpt-4o-mini")
+    final_report_model_name: str = Field("gpt-4o")
     planning_temperature: float = 0.1
     temperature_final_report: float = 0.3
     max_tokens_planning: int = Field(1500, description="Max tokens for planning model. Ensure this is well within model limits (e.g., gpt-4o-mini 128k context).")
@@ -42,7 +42,7 @@ class Settings(BaseSettings): # Inherit from BaseSettings
     # --- Orchestrator Behavior ---
     max_steps: int = 7
     confidence_threshold: float = 0.9
-    default_numeric_tag: str = Field("FREEZER01.TEMP.INTERNAL_C") # Removed env here, will be prefixed by MCP_
+    default_numeric_tag: str = Field("FREEZER01.TEMP.INTERNAL_C")
     min_initial_tag_similarity_threshold: float = 0.25
     default_window_hours: int = 2
     default_timezone: str = "UTC"

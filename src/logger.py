@@ -3,9 +3,8 @@ import logging
 import logging.config
 import os
 from rich.logging import RichHandler
-# from rich.traceback import Traceback # Not directly used, can be removed if not needed for other funcs
-import argparse # Added to suppress RichHandler tracebacks for this module if needed
-import click # Added to suppress RichHandler tracebacks for this module if needed
+import argparse
+import click
 
 # Define a default log file path if MCP_LOG_FILE is not set
 DEFAULT_LOG_FILE = "orchestrator_debug.log"

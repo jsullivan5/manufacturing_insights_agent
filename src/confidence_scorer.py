@@ -73,29 +73,6 @@ def score_evidence(
                 bonus += 0.05 # Extra if within a focused window
             base_score += bonus
             if found_window: found_anomaly_in_window = True # Assume if window is found, this anomaly is in it for now
-        
-        # Consolidated check for detect_binary_flips tool results
-        # if tool_name == "detect_binary_flips" and isinstance(tool_result, dict):
-        #     actual_tool_data = tool_result.get("data", {})
-        #     if isinstance(actual_tool_data, dict): # Ensure actual_tool_data is a dict before using .get()
-        #         flips_found = actual_tool_data.get("changes") and len(actual_tool_data.get("changes", [])) > 0
-        #         continuous_event_found = bool(actual_tool_data.get("continuous_high_event"))
-
-        #         if flips_found or continuous_event_found:
-        #             base_score += 0.10 # Base bonus for any binary event
-        #             if found_window: # Additional bonus if within a focused window
-        #                 base_score += 0.05
-        #                 found_binary_flip_in_window = True
-                    
-        #             # Logging for clarity
-        #             if flips_found and continuous_event_found:
-        #                 logger.debug(f"Binary event for {actual_tool_data.get('tag')}: Found both flips and continuous high event. Setting found_binary_flip_in_window = True.")
-        #             elif flips_found:
-        #                 logger.debug(f"Binary event for {actual_tool_data.get('tag')}: Found flips. Setting found_binary_flip_in_window = True.")
-        #             elif continuous_event_found:
-        #                 logger.debug(f"Binary event for {actual_tool_data.get('tag')}: Found continuous high event. Setting found_binary_flip_in_window = True.")
-        #     else:
-        #         logger.warning(f"For tool {tool_name}, expected 'data' to be a dictionary, but it was not. Tool result: {tool_result}")
 
         elif tool_name == "detect_binary_flips" and isinstance(tool_result, dict):
             # Accept both storage conventions
