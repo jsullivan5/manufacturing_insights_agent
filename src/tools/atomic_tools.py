@@ -75,68 +75,55 @@ def _alert_state(tag_name: str) -> int | None:
 # Configure logging
 logger = logging.getLogger(__name__)
 
+
 # Utility function to parse string dates
 def parse_time_reference(time_ref: Union[str, datetime, None]) -> Optional[datetime]:
     """
-    Parse string time references into datetime objects.
-    
-    Handles natural language like 'yesterday', 'last week', etc.
-    
-    Args:
-        time_ref: String time reference or datetime object
-        
-    Returns:
-        Datetime object or None if parsing fails
+    Convert a user‑supplied time reference into a timezone‑aware UTC ``datetime``.
+
+    * Accepts ``datetime`` objects (and localises them to UTC if naive).
+    * Delegates natural‑language parsing to **dateparser** so we stay
+      consistent with ``parse_time_range``.
+    * Falls back to ``pandas.to_datetime`` if ``dateparser`` cannot parse the string.
+
+    Returns
+    -------
+    datetime | None
+        A timezone‑aware UTC datetime, or ``None`` if parsing failed.
     """
     if time_ref is None:
         return None
-        
+
+    # Already a datetime → just ensure UTC and return
     if isinstance(time_ref, datetime):
-        return time_ref
-        
-    # Handle common string patterns
-    now = datetime.now()
-    time_ref = str(time_ref).lower().strip()
-    
+        return time_ref if time_ref.tzinfo else time_ref.replace(tzinfo=timezone.utc)
+
+    # Convert to string and try natural‑language parser
+    ref_str = str(time_ref).strip()
+
     try:
-        if time_ref == 'now':
-            return now
-            
-        elif 'yesterday' in time_ref:
-            result = now - timedelta(days=1)
-            # Handle time of day references
-            if 'morning' in time_ref:
-                return result.replace(hour=8, minute=0, second=0)
-            elif 'afternoon' in time_ref:
-                return result.replace(hour=14, minute=0, second=0)
-            elif 'evening' in time_ref:
-                return result.replace(hour=18, minute=0, second=0)
-            return result.replace(hour=0, minute=0, second=0)
-            
-        elif 'today' in time_ref:
-            # Handle time of day references
-            if 'morning' in time_ref:
-                return now.replace(hour=8, minute=0, second=0)
-            elif 'afternoon' in time_ref:
-                return now.replace(hour=14, minute=0, second=0)
-            elif 'evening' in time_ref:
-                return now.replace(hour=18, minute=0, second=0)
-            return now.replace(hour=0, minute=0, second=0)
-            
-        elif 'last week' in time_ref:
-            return now - timedelta(days=7)
-            
-        elif 'last month' in time_ref:
-            return now - timedelta(days=30)
-            
-        # Try to parse standard date formats
-        return pd.to_datetime(time_ref).to_pydatetime()
-        
+        import dateparser
+        dt = dateparser.parse(
+            ref_str,
+            settings={
+                "TIMEZONE": "UTC",
+                "RETURN_AS_TIMEZONE_AWARE": True,
+                "PREFER_DATES_FROM": "past",
+            },
+        )
+        if dt is not None:
+            return dt
+
     except Exception as e:
-        logger.warning(f"Failed to parse time reference '{time_ref}': {e}")
+        logger.debug(f"dateparser failed on '{ref_str}': {e}")
+
+    # Fallback to pandas
+    try:
+        return pd.to_datetime(ref_str, utc=True).to_pydatetime()
+    except Exception as e:
+        logger.warning(f"parse_time_reference: could not parse '{ref_str}': {e}")
         return None
 
-# Default energy costs (can be overridden via config)
 ENERGY_COST_KWH = 0.12  # $/kWh
 PRODUCT_LOSS_TEMP_THRESHOLD = -15.0  # °C
 PRODUCT_LOSS_PER_DEGREE_HOUR = 5.0  # $/°C-hour above threshold
