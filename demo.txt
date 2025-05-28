@@ -1,2 +1,2 @@
 python src/mcp_cli.py "What caused the freezer temperature spike around 14:30 yesterday?"
-python src/mcp_cli.py "What caused the compressor to stop running around 02:15UTC on 05-23-2025?"
+python src/mcp_cli.py "What caused the compressor to stop running around 02:15 on 05-23-2025?"
