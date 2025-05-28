@@ -295,9 +295,9 @@ class FreezorDataGenerator:
                     # Increase power consumption due to higher load
                     point.value *= 1.3
                     
-    def inject_anomaly_compressor_failure(self, start_time: str, duration_minutes: int = 45) -> None:
+    def inject_anomaly_compressor_failure(self, start_time: str, duration_minutes: int = 60) -> None:
         """
-        Inject anomaly: Compressor fails to activate despite high temperature.
+        Inject anomaly: Compressor hard‑off event – unit stays completely off, causing a rapid temperature rise that is easy to spot in demos.
         
         Simulates mechanical failure where compressor doesn't respond to
         temperature control signals, resulting in continuous temperature rise.
@@ -316,12 +316,15 @@ class FreezorDataGenerator:
                 if point.tag_name == "FREEZER01.COMPRESSOR.STATUS":
                     point.value = 0.0  # Force compressor off
                 elif point.tag_name == "FREEZER01.COMPRESSOR.POWER_KW":
-                    point.value = 0.5  # Only standby power
+                    point.value = 0.0  # Compressor draws no power during hard‑off
                 elif point.tag_name == "FREEZER01.TEMP.INTERNAL_C":
-                    # Temperature continues to rise without cooling
+                    # Accelerate temperature rise so the effect is obvious in a 1‑hour slice
                     minutes_elapsed = (point.timestamp - anomaly_start).total_seconds() / 60
-                    temp_rise = min(12.0, minutes_elapsed * 0.15)  # Gradual rise
+                    temp_rise = min(15.0, minutes_elapsed * 0.30)  # Up to +15 °C at 50 min
                     point.value += temp_rise
+                elif point.tag_name == "FREEZER01.COMPRESSOR.STATUS":
+                    # Make sure status is firmly off for the entire interval
+                    point.value = 0.0
     
     def inject_anomaly_sensor_flatline(self, start_time: str, duration_hours: int = 6) -> None:
         """
