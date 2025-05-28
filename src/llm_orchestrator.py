@@ -106,10 +106,12 @@ GOAL: Raise confidence to >=0.9 by discovering a causal chain.
 STRATEGY:
   1. If no window yet (either from parse_time_range or a previous find_interesting_window call) -> call find_interesting_window on the most relevant numeric tag. If a window was determined by parse_time_range, use its start_time and end_time as arguments for the *search range* within find_interesting_window, if the tool supports it, to narrow its focus.
   2. Detect anomalies in the primary tag within the established investigation_window. If no anomalies found, consider retrying detect_numeric_anomalies with a lower threshold (e.g., 2.0 or 2.5).
-  3. Search related tags (door, compressor...) and detect anomalies or flips within the investigation_window.
-  4. Call test_causality on promising cause/effect pairs within the investigation_window.
-  5. Adjust thresholds or choose new tags if confidence is stagnant. If initial window is unhelpful and confidence is low after a few steps, consider calling find_interesting_window again, perhaps with a different primary_tag or window_hours (this may override a window from parse_time_range if necessary). When confidence >=0.9 or you have no more meaningful actions, call function "finish_investigation".
-  6. CRITICAL for finish_investigation: You MUST populate the 'event_timeline_summary' with at least 3 chronological events and the 'business_impact_summary' with all its required keys (total_cost_usd, energy_cost_usd, product_risk_usd, severity_level). Failure to provide these complete fields will result in an error and a retry.
+  3. After a binary flip, always call test_causality with the binary tag as cause and the main numeric tag as effect.
+  4. if a binary tag flips first and the continuous tag drifts afterward, treat the binary flip as the cause
+  5. Search related tags (door, compressor...) and detect anomalies or flips within the investigation_window.
+  6. Call test_causality on promising cause/effect pairs within the investigation_window.
+  7. Adjust thresholds or choose new tags if confidence is stagnant. If initial window is unhelpful and confidence is low after a few steps, consider calling find_interesting_window again, perhaps with a different primary_tag or window_hours (this may override a window from parse_time_range if necessary). When confidence >=0.9 or you have no more meaningful actions, call function "finish_investigation".
+  8. CRITICAL for finish_investigation: You MUST populate the 'event_timeline_summary' with at least 3 chronological events and the 'business_impact_summary' with all its required keys (total_cost_usd, energy_cost_usd, product_risk_usd, severity_level). Failure to provide these complete fields will result in an error and a retry.
 
   EXAMPLE of the required JSON when you finally call `finish_investigation`:
 

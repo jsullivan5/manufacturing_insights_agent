@@ -49,8 +49,8 @@ class Settings(BaseSettings): # Inherit from BaseSettings
 
     # --- Confidence Scoring & Staleness ---
     default_confidence_decay_base: float = 0.98
-    min_confidence_delta_for_staleness: float = 0.01
-    max_stale_steps: int = 3
+    min_confidence_delta_for_staleness: float = 0.005
+    max_stale_steps: int = 5
 
     # --- Guardrails ---
     max_runaway_cost_usd: Decimal = Field(Decimal("0.50"), description="Max USD cost before stopping a run.")

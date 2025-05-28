@@ -122,7 +122,7 @@ def score_evidence(
             best_lag_minutes  = abs(float(candidate.get("best_lag_minutes", 1e6)))
             correlation_strength = abs(float(candidate.get("best_correlation", 0.0)))
 
-            if causal_confidence > 0.6 and correlation_strength > 0.5 and best_lag_minutes < 20:
+            if causal_confidence > 0.6 and correlation_strength > 0.3 and best_lag_minutes < 20:
                 base_score += (causal_confidence * 0.5) + 0.1
                 found_causality = True
             elif causal_confidence > 0.4:
