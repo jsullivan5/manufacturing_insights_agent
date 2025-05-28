@@ -591,6 +591,10 @@ REMINDER: One tool call per turn. Use start_time/end_time from the established i
                         self.original_query        # <- fallback here too
                     )
 
+            # Inject orchestrator's 'today_iso' for parse_time_range if it's being called
+            if tool_name == "parse_time_range":
+                current_args_for_tool_call['today_iso_from_orchestrator'] = self.today_iso
+
             tool_sig = self._calculate_tool_signature(tool_name, current_args_for_tool_call)
             is_duplicate = False
             if tool_name != "parse_time_range" and tool_sig in self.executed_tool_signatures:

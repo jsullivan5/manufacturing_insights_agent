@@ -47,10 +47,17 @@ def load_data(
     
     try:
         # Load the entire dataset
-        df = pd.read_csv(data_file)
+        df = pd.read_csv(data_file, parse_dates=['Timestamp'])
         
-        # Convert timestamp column to datetime
-        df['Timestamp'] = pd.to_datetime(df['Timestamp'])
+        # Ensure Timestamp column is timezone-aware UTC
+        if 'Timestamp' not in df.columns:
+            logger.error(f"'Timestamp' column not found in {data_file}")
+            return pd.DataFrame()
+        
+        if df['Timestamp'].dt.tz is None:
+            df['Timestamp'] = df['Timestamp'].dt.tz_localize('UTC')
+        else:
+            df['Timestamp'] = df['Timestamp'].dt.tz_convert('UTC')
         
         # Get list of available tags for error reporting
         available_tags = df['TagName'].unique().tolist()
@@ -71,12 +78,18 @@ def load_data(
         if tag_data.empty:
             raise RuntimeError(f"No data found for tag '{tag}'")
         
-        # Apply time range filtering if specified
-        if start is not None:
-            tag_data = tag_data[tag_data['Timestamp'] >= start]
+        # Ensure start_time and end_time are pandas Timestamps and timezone-aware (UTC)
+        if start:
+            pd_start = pd.to_datetime(start)
+            if pd_start.tzinfo is None:
+                pd_start = pd_start.tz_localize('UTC')
+            tag_data = tag_data[tag_data['Timestamp'] >= pd_start]
             
-        if end is not None:
-            tag_data = tag_data[tag_data['Timestamp'] <= end]
+        if end:
+            pd_end = pd.to_datetime(end)
+            if pd_end.tzinfo is None:
+                pd_end = pd_end.tz_localize('UTC')
+            tag_data = tag_data[tag_data['Timestamp'] <= pd_end]
             
         # Check if we have data after time filtering
         if tag_data.empty:

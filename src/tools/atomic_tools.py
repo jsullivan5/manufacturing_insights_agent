@@ -38,6 +38,24 @@ from src.glossary import TagGlossary
 
 _glossary_singleton = TagGlossary()
 
+from datetime import timezone
+
+def _ensure_utc_ts(ts: Union[str, datetime, pd.Timestamp, None]):
+    if ts is None:
+        return None
+    ts = pd.to_datetime(ts)
+
+    # >>> If we somehow got two timezone chunks, strip one <<<
+    # e.g.  '2025-05-20T08:05:00+00:00+00:00'  -->  '2025-05-20T08:05:00+00:00'
+    if isinstance(ts, str) and ts.count('+00:00') > 1:
+        ts = ts.replace('+00:00+00:00', '+00:00')
+
+    if ts.tzinfo is None:
+        ts = ts.tz_localize('UTC')
+    else:
+        ts = ts.tz_convert('UTC')
+    return ts
+
 def _alert_state(tag_name: str) -> int | None:
     """
     Return 1 or 0 if the glossary defines which binary value means
@@ -999,8 +1017,26 @@ def find_interesting_window(
     If scan start_time == end_time, it's expanded by `default_expansion_minutes_total` first.
     If the (expanded) scan range is already <= window_hours, it returns this range.
     """
+    logger.debug("=" * 60)
+    logger.debug("=" * 60)
+    logger.debug("=" * 60)
+    logger.debug(f"find_interesting_window received call with primary_tag: {primary_tag}, start_time: {start_time}, end_time: {end_time}")
+    logger.debug("=" * 60)
+    logger.debug("=" * 60)
+    logger.debug("=" * 60)
     parsed_scan_start_time = parse_time_reference(start_time)
     parsed_scan_end_time = parse_time_reference(end_time)
+    logger.debug("=" * 60)
+    logger.debug("=" * 60)
+    logger.debug("=" * 60)
+    logger.debug(f"find_interesting_window received call with parsed: {primary_tag}, parsed_scan_start_time: {parsed_scan_start_time}, parsed_scan_end_time: {parsed_scan_end_time}")
+    logger.debug("=" * 60)
+    logger.debug("=" * 60)
+    logger.debug("=" * 60)
+
+    # Ensure scan-range endpoints are timezone‑aware UTC before any further logic
+    parsed_scan_start_time = _ensure_utc_ts(parsed_scan_start_time)
+    parsed_scan_end_time   = _ensure_utc_ts(parsed_scan_end_time)
 
     # P0.3 Fix: Expand if called with a zero-duration scan window
     if parsed_scan_start_time and parsed_scan_end_time and parsed_scan_start_time == parsed_scan_end_time:
@@ -1046,6 +1082,7 @@ def find_interesting_window(
     # Ensure all returned timestamps are ISO and Z-suffixed.
     try:
         df = load_data(primary_tag, parsed_scan_start_time, parsed_scan_end_time)
+        
     except Exception as e:
         logger.error(f"Error loading data for {primary_tag} in find_interesting_window: {e}")
         start_iso = parsed_scan_start_time.isoformat().replace("+00:00", "Z") if parsed_scan_start_time else None
@@ -1162,48 +1199,139 @@ def _safe_year(dt: datetime, now: datetime) -> datetime:
 
 def parse_time_range(start_time: Optional[str] = None, end_time: Optional[str] = None, query: Optional[str] = None, **kwargs) -> Dict[str, Optional[str]]:
     """
-    Echoes back the start_time and end_time provided by the LLM, or infers from query.
-    The LLM uses its natural language understanding to determine these from the user query.
-    Both start_time and end_time should be ISO-8601 UTC strings if provided.
-    If start/end are None and query contains "yesterday", defaults to yesterday 14:00-15:00 UTC.
-    Returns a dictionary containing the provided or inferred start_time and end_time.
+    Parses or infers a time range. 
+    If start_time and end_time are provided by the LLM (as ISO 8601 UTC strings), they are validated and used.
+    If not, and a query is provided, uses dateparser to find time references in the query.
+    The base_date_for_relative_queries (effectively 'now') is taken from the orchestrator's today_iso.
+    Returns a dictionary containing 'start_time' and 'end_time' as ISO 8601 UTC strings.
     """
-    logger.info(f"parse_time_range received call with start_time: {start_time}, end_time: {end_time}, query: {query}")
+    logger.info(f"parse_time_range received - LLM start: {start_time}, LLM end: {end_time}, Query: {query}")
+
+    # Get 'now' from orchestrator if available (passed via kwargs), else use current time.
+    # This is crucial for dateparser to correctly interpret relative dates like "yesterday".
+    base_date_str = kwargs.get('today_iso_from_orchestrator')
+    now_utc = pd.to_datetime(base_date_str).tz_convert(timezone.utc).to_pydatetime() if base_date_str else datetime.now(timezone.utc)
+
+    processed_start_dt: Optional[datetime] = None
+    processed_end_dt: Optional[datetime] = None
+
+    if start_time: # LLM provided a start_time
+        try:
+            dt_start = datetime.fromisoformat(start_time.replace("Z", "+00:00"))
+            if dt_start.tzinfo is None: dt_start = dt_start.replace(tzinfo=timezone.utc)
+            processed_start_dt = _safe_year(dt_start, now_utc)
+        except ValueError:
+            logger.warning(f"Could not parse LLM-provided start_time '{start_time}' as ISO. Will try query.")
+            start_time = None # Invalidate to trigger query parsing
+
+    if end_time: # LLM provided an end_time
+        try:
+            dt_end = datetime.fromisoformat(end_time.replace("Z", "+00:00"))
+            if dt_end.tzinfo is None: dt_end = dt_end.replace(tzinfo=timezone.utc)
+            processed_end_dt = _safe_year(dt_end, now_utc)
+        except ValueError:
+            logger.warning(f"Could not parse LLM-provided end_time '{end_time}' as ISO. Will try query if start_time also failed.")
+            end_time = None # Invalidate
     
-    now_utc = datetime.now(timezone.utc)
-    processed_start_time = start_time
-    processed_end_time = end_time
+    # If LLM didn't provide valid start/end, or only one, try parsing the query
+    if not processed_start_dt and query:
+        logger.info(f"Attempting to parse time from query: '{query}' using dateparser relative to {now_utc.isoformat()})")
+        try:
+            import dateparser.search
+            # Settings for dateparser
+            # PREFER_DATES_FROM: 'past' helps with "yesterday", "last week"
+            # TIMEZONE: 'UTC' ensures parsed datetimes are in UTC if not specified
+            # RETURN_AS_TIMEZONE_AWARE: Ensures datetime objects have tzinfo
+            # NORMALIZE: True can help with some varied inputs
+            dp_settings = {
+                'PREFER_DATES_FROM': 'past',
+                'TIMEZONE': 'UTC',
+                'RETURN_AS_TIMEZONE_AWARE': True,
+                'RELATIVE_BASE': now_utc # Critically important for relative dates
+            }
+            
+            found_dates = dateparser.search.search_dates(query, languages=['en'], settings=dp_settings)
+            
+            if found_dates:
+                logger.info(f"Dateparser found: {found_dates}")
+                # Logic to handle found_dates: prioritize, set default windows
+                # For simplicity, let's take the first one found as a reference point.
+                # A more complex implementation could look for pairs or specific keywords.
+                
+                ref_text, ref_dt = found_dates[0]
+                ref_dt = _safe_year(ref_dt, now_utc) # Ensure year is correct
 
-    if not processed_start_time and not processed_end_time and query and "yesterday" in query.lower():
-        logger.info(f"parse_time_range: No start/end time provided, but 'yesterday' found in query. Defaulting to yesterday 14:00-15:00 UTC.")
-        pivot_time = now_utc.replace(hour=14, minute=0, second=0, microsecond=0) - timedelta(days=1)
-        processed_start_time = pivot_time.isoformat().replace("+00:00", "Z")
-        processed_end_time   = (pivot_time + timedelta(hours=1)).isoformat().replace("+00:00", "Z")
-    else:
-        # Apply _safe_year if full ISO timestamps are provided by the LLM (or from default above)
-        if processed_start_time:
-            try:
-                dt_start = datetime.fromisoformat(processed_start_time.replace("Z", "+00:00"))
-                if dt_start.tzinfo is None:
-                    dt_start = dt_start.replace(tzinfo=timezone.utc)
-                processed_start_time = _safe_year(dt_start, now_utc).isoformat().replace("+00:00", "Z")
-            except ValueError:
-                logger.warning(f"parse_time_range: Could not parse start_time '{processed_start_time}' as ISO date for year check. Using as is.")
-        
-        if processed_end_time:
-            try:
-                dt_end = datetime.fromisoformat(processed_end_time.replace("Z", "+00:00"))
-                if dt_end.tzinfo is None:
-                    dt_end = dt_end.replace(tzinfo=timezone.utc)
-                processed_end_time = _safe_year(dt_end, now_utc).isoformat().replace("+00:00", "Z")
-            except ValueError:
-                logger.warning(f"parse_time_range: Could not parse end_time '{processed_end_time}' as ISO date for year check. Using as is.")
+                # Default windowing logic based on what dateparser found
+                if "afternoon" in ref_text.lower():
+                    processed_start_dt = ref_dt.replace(hour=12, minute=0, second=0, microsecond=0)
+                    processed_end_dt = ref_dt.replace(hour=17, minute=0, second=0, microsecond=0)
+                elif "morning" in ref_text.lower():
+                    processed_start_dt = ref_dt.replace(hour=8, minute=0, second=0, microsecond=0)
+                    processed_end_dt = ref_dt.replace(hour=12, minute=0, second=0, microsecond=0)
+                elif "evening" in ref_text.lower() or "night" in ref_text.lower():
+                    processed_start_dt = ref_dt.replace(hour=18, minute=0, second=0, microsecond=0)
+                    processed_end_dt = ref_dt.replace(hour=23, minute=59, second=59, microsecond=0)
+                elif "around" in ref_text.lower() or (ref_dt.hour != 0 or ref_dt.minute != 0 or ref_dt.second != 0):
+                    # A specific time was mentioned, create a +/- 30min window or similar
+                    processed_start_dt = ref_dt - timedelta(minutes=30)
+                    processed_end_dt = ref_dt + timedelta(minutes=30)
+                else: # Only a date, no specific time of day implies full day or common business hours
+                    processed_start_dt = ref_dt.replace(hour=9, minute=0, second=0, microsecond=0)
+                    processed_end_dt = ref_dt.replace(hour=17, minute=0, second=0, microsecond=0)
+                
+                # If only one of start/end was provided by LLM, and query parsing yielded a window,
+                # prefer the query-parsed window for now. This logic can be refined.
+                if start_time and not end_time and processed_start_dt and processed_end_dt: # LLM gave start, query gave window
+                    logger.info("LLM gave start_time, query parsing yielded a window. Using query-parsed window for consistency.")
+                elif end_time and not start_time and processed_start_dt and processed_end_dt: # LLM gave end_time, query gave window
+                     logger.info("LLM gave end_time, query parsing yielded a window. Using query-parsed window for consistency.")
 
-    if processed_start_time and processed_end_time and processed_start_time == processed_end_time:
-        logger.info(f"parse_time_range: start_time and end_time are identical ('{processed_start_time}'). Consuming tools may need to expand this.")
+            else:
+                logger.info("Dateparser found no specific dates in query. Falling back to default.")
+                # Fallback if dateparser finds nothing and LLM didn't provide times
+                pivot_time = now_utc.replace(hour=14, minute=30, second=0, microsecond=0) - timedelta(days=1)
+                processed_start_dt = pivot_time - timedelta(minutes=30)
+                processed_end_dt = pivot_time + timedelta(minutes=30)
+                logger.info(f"Defaulted to yesterday around 14:30 UTC: {processed_start_dt.isoformat()} to {processed_end_dt.isoformat()}")
 
-    logger.info(f"parse_time_range returning start_time: {processed_start_time}, end_time: {processed_end_time}")
-    return {"start_time": processed_start_time, "end_time": processed_end_time}
+        except ImportError:
+            logger.error("Dateparser library is not installed. Please install it: pip install dateparser")
+            # Fallback to very basic yesterday logic if dateparser is missing
+            if query and "yesterday" in query.lower():
+                pivot_time = now_utc.replace(hour=14, minute=0, second=0, microsecond=0) - timedelta(days=1)
+                processed_start_dt = pivot_time
+                processed_end_dt   = pivot_time + timedelta(hours=1)
+        except Exception as e:
+            logger.exception(f"Error during dateparser processing: {e}")
+            # Fallback on any other dateparser error
+            if query and "yesterday" in query.lower():
+                pivot_time = now_utc.replace(hour=14, minute=0, second=0, microsecond=0) - timedelta(days=1)
+                processed_start_dt = pivot_time
+                processed_end_dt   = pivot_time + timedelta(hours=1)
+
+    # If only one of start/end is determined, create a default window around it
+    if processed_start_dt and not processed_end_dt:
+        processed_end_dt = processed_start_dt + timedelta(hours=1)
+        logger.info(f"Only start_time determined. Setting end_time to 1 hour after: {processed_end_dt.isoformat()}")
+    elif not processed_start_dt and processed_end_dt:
+        processed_start_dt = processed_end_dt - timedelta(hours=1)
+        logger.info(f"Only end_time determined. Setting start_time to 1 hour before: {processed_start_dt.isoformat()}")
+    
+    # Final check for start < end
+    if processed_start_dt and processed_end_dt and processed_start_dt >= processed_end_dt:
+        logger.warning(f"Corrected: start_time {processed_start_dt.isoformat()} was not before end_time {processed_end_dt.isoformat()}. Adjusting end_time.")
+        processed_end_dt = processed_start_dt + timedelta(hours=1) # Ensure end is after start
+
+    final_start_iso = processed_start_dt.isoformat().replace("+00:00", "Z") if processed_start_dt else None
+    final_end_iso = processed_end_dt.isoformat().replace("+00:00", "Z") if processed_end_dt else None
+
+    # Ensure this tool doesn't cause an error if it still can't determine times.
+    # Consuming tools MUST validate the window they receive from this.
+    if not final_start_iso and not final_end_iso:
+        logger.warning("parse_time_range could not determine any time window. Returning None for both.")
+
+    logger.info(f"parse_time_range returning: start_time='{final_start_iso}', end_time='{final_end_iso}'")
+    return {"start_time": final_start_iso, "end_time": final_end_iso}
 
 
 def main():
