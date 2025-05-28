@@ -1,377 +1,177 @@
-# 🏭 Manufacturing Copilot (MCP) - LLM-Powered Manufacturing Intelligence
+# 🏭 Manufacturing Copilot (MCP)
 
-> **GPT-4 powered manufacturing insights that think like a senior process engineer**
-
-A revolutionary AI system that transforms manufacturing data analysis from raw numbers into expert-level insights, root cause analysis, and actionable operational recommendations - all through natural language queries.
-
-![Manufacturing Copilot Demo](https://img.shields.io/badge/AI-GPT--4%20Powered-blue?style=for-the-badge&logo=openai)
-![Python](https://img.shields.io/badge/Python-3.11+-green?style=for-the-badge&logo=python)
-![Manufacturing](https://img.shields.io/badge/Industry-Manufacturing-orange?style=for-the-badge&logo=factory)
+> **AI‑powered root‑cause analysis, anomaly detection, and predictive maintenance for industrial time‑series data—delivered through natural‑language conversations.**
 
 ---
 
-## 🚀 **What Makes This Special**
+## 🎯 Objective
 
-Instead of traditional dashboards that show you data, **Manufacturing Copilot explains what the data means and tells you what to do about it** - just like a senior process engineer with 20+ years of experience would.
-
-### **Traditional Approach:**
-```
-❌ "Temperature is 15.2°C at 14:30"
-❌ "Power consumption increased 45%"  
-❌ "3 anomalies detected"
-```
-
-### **Manufacturing Copilot Approach:**
-```
-✅ "Temperature spike caused by door usage patterns + compressor inefficiency"
-✅ "Inspect door seals and check compressor performance immediately"
-✅ "Implement door usage policy to prevent product quality issues"
-✅ "Schedule predictive maintenance to avoid costly downtime"
-```
+Manufacturing Copilot (MCP) turns raw PI‑System tags and other plant telemetry into expert‑level insights in seconds. It employs a sophisticated AI agent that iteratively investigates data anomalies. Given a natural language query (e.g., "Why did the freezer temperature spike?"), the MCP's orchestrator uses an LLM to formulate hypotheses, select appropriate analytical tools from a specialized toolkit, interpret their outputs (which are always structured JSON), and refine its understanding. This cycle continues, building an evidence chain and a confidence score, until a root cause is identified with high certainty or a maximum number of steps is reached. The agent then delivers a clear, actionable report. This process slashes unplanned downtime, breaks down knowledge silos, and frees engineers from hours of manual dashboard forensics.
 
 ---
 
-## 🧠 **How It Works: LLM-Powered Intelligence**
+## ❓ Why This Project Exists
 
-### **1. Intelligent Query Understanding**
-- **GPT-4 parses natural language** → No more complex query syntax
-- **Manufacturing domain expertise** → Understands freezer systems, compressors, PI tags
-- **Context-aware analysis** → Creates intelligent multi-step analysis plans
+| Pain Point (Today)        | MCP Solution (Tomorrow)                            |
+|---------------------------|----------------------------------------------------|
+| Slow root‑cause hunts     | Answers in minutes via auto‑planned LLM analysis   |
+| Alert fatigue             | Context‑aware correlation & prioritised alerts     |
+| Knowledge silos           | Embedded domain reasoning for every operator       |
+| Reactive maintenance      | Predictive alerts before costly failure            |
 
-### **2. Multi-Step Analysis Execution**
-```json
-# GPT-4 creates analysis plan:
-{
-  "primary_tag": "FREEZER01.TEMP.INTERNAL_C",
-  "analysis_steps": ["basic_statistics", "detect_anomalies", "correlate_tags", "generate_chart"],
-  "reasoning": "Temperature problems require anomaly detection and correlation analysis..."
-}
-```
-
-### **3. Expert-Level Insight Generation**
-- **Root cause analysis** → Identifies why problems occurred
-- **Operational impact assessment** → Explains business consequences  
-- **Specific recommendations** → Actionable next steps for operators
-- **Preventive measures** → How to avoid future issues
-
-### **4. Professional Visualizations**
-- **Anomaly highlighting** → Red-shaded problem periods
-- **Trend analysis** → Statistical overlays and trend lines
-- **Data quality indicators** → Good/Questionable/Bad data markers
+*Replace/expand rows as needed.*
 
 ---
 
-## 🎯 **Demo Queries That Test The System**
+## 🚀 Key Capabilities
 
-```bash
-# Root cause analysis with expert recommendations
-python src/mcp.py "What caused the temperature problems in the freezer yesterday? I need a complete analysis with root cause and recommendations."
-
-# Intelligent anomaly detection
-python src/mcp.py "Show me any unusual patterns or anomalies in the compressor power consumption over the past week"
-
-# Energy efficiency troubleshooting  
-python src/mcp.py "Why is the freezer using more energy than normal? What should we check?"
-
-# Comprehensive system analysis
-python src/mcp.py "Give me a complete performance analysis of the freezer system with correlations and insights"
-```
-
-**Sample Output:**
-```
-1. **What Happened?**
-Yesterday, the internal temperature of Freezer01 fluctuated between -18.8°C and -11.44°C, 
-with an average temperature of -17.02°C. This is a significant deviation from the ideal 
-operating temperature range.
-
-2. **Root Cause Analysis**
-The data analysis indicates a moderate correlation between the freezer door status and 
-the internal temperature. This suggests that the door was opened more frequently or left 
-open for extended periods, causing the temperature to rise.
-
-3. **Operational Impact**
-These temperature fluctuations can have a significant impact on product quality and safety. 
-If the temperature rises above the safe storage level, it can lead to spoilage and waste.
-
-4. **Recommended Actions**
-Immediate actions should include a thorough inspection of the freezer door seals and latches 
-to ensure they are functioning correctly. Staff should be reminded of the importance of 
-minimizing door opening times.
-
-5. **Preventive Measures**
-Consider implementing a door alarm that will alert staff if the door is left open for an 
-extended period. Regular maintenance and inspection of the compressor should be scheduled.
-```
+- **Natural-language diagnostics** – *"Why did the freezer temperature spike yesterday?"*  
+- **Multi-signal correlation** – tags, events, anomalies, lag analysis  
+- **Expert-level recommendations** – concrete next actions with impact estimates  
+- **Extensible toolchain** – plug-in atomic tools for custom analytics  
+- **Live PI System connector (optional)** – real‑time streaming analytics
 
 ---
 
-## 🛠 **Setup & Installation**
+## 🛠️ Quick Start
 
-### **Prerequisites**
-- Python 3.11+ 
-- OpenAI API key (for GPT-4 access)
-- Git
-
-### **1. Clone the Repository**
 ```bash
-git clone <repository-url>
-cd manufacturing_mcp
-```
+# 1. Clone & create virtualenv
+git clone https://github.com/your-org/manufacturing_mcp && cd manufacturing_mcp
+python -m venv .venv && source .venv/bin/activate  # Windows: .venv\Scripts\activate
 
-### **2. Create Virtual Environment**
-```bash
-python -m venv .venv
-
-# Activate virtual environment
-# On macOS/Linux:
-source .venv/bin/activate
-
-# On Windows:
-.venv\Scripts\activate
-```
-
-### **3. Install Dependencies**
-```bash
+# 2. Install dependencies
 pip install -r requirements.txt
-```
 
-### **4. Set Up Environment Variables**
-Create a `.env` file in the project root:
-```bash
-# Required: OpenAI API key for GPT-4 access
-OPENAI_API_KEY=your_openai_api_key_here
+# 3. Configure OpenAI + optional PI credentials
+cp .env.sample .env            # fill in OPENAI_API_KEY etc.
 
-# Optional: Adjust logging level
-LOG_LEVEL=INFO
-```
-
-### **5. Generate Sample Data (First Time Setup)**
-```bash
-# Generate 7 days of realistic freezer system data
+# 4. Generate demo data (optional)
 python src/generate_freezer_data.py
 
-# This creates:
-# - data/freezer_data.csv (50,400+ data points)
-# - data/tag_glossary.csv (PI tag descriptions)
-# - Realistic anomalies and operational patterns
-```
+# 5. Ask a question!
+# Here are specific examples you can run to investigate pre-configured anomalies:
 
-### **6. Test the Installation**
-```bash
-# Quick test with LLM-powered analysis
-python src/mcp.py "Show me freezer temperatures yesterday"
-```
+# Example 1: Investigate a freezer temperature spike (simulates door left open)
+python src/mcp_cli.py "What caused the freezer temperature spike around 14:30 yesterday?"
 
----
-
-## 🎬 **Running the Demo**
-
-### **Interactive Demo Script**
-```bash
-# Run the complete job interview demo
-python demo_script.py
-```
-
-### **Individual Queries**
-```bash
-# LLM-powered analysis (recommended!)
-python src/mcp.py "What caused the temperature spike yesterday?"
-
-# Verbose logging for debugging
-python src/mcp.py "Analyze compressor performance" --verbose
-```
-
-### **Command Line Options**
-```bash
-python src/mcp.py [QUERY] [OPTIONS]
-
-Options:
-  --verbose, -v     Enable verbose logging
-  --help           Show help message
+# Example 2: Investigate a compressor stoppage (simulates compressor failure)
+python src/mcp_cli.py "What caused the compressor to stop running around 02:15 on 05-23-2025?"
 ```
 
 ---
 
-## 📊 **Project Structure**
+## 🔬 Deep Dive: Code Architecture
 
-```
-manufacturing_mcp/
-├── src/
-│   ├── mcp.py                    # Main CLI entry point
-│   ├── llm_interpreter.py        # 🧠 GPT-4 powered analysis engine
-│   ├── glossary.py              # Semantic tag search with embeddings
-│   ├── generate_freezer_data.py  # Realistic data generator
-│   └── tools/                   # Analysis tool functions
-│       ├── anomaly_detection.py  # Z-score based spike detection
-│       ├── correlation.py        # Multi-type correlation analysis
-│       ├── visualization.py      # Professional chart generation
-│       ├── data_loader.py        # PI System data loading
-│       ├── metrics.py            # Statistical summarization
-│       └── quality.py           # Data quality assessment
-├── data/                        # Generated manufacturing data
-│   ├── freezer_data.csv         # 7 days of time-series data
-│   └── tag_glossary.csv         # PI tag descriptions
-├── charts/                      # Generated visualizations
-├── .documentation/              # Project documentation
-├── demo_script.py              # Job interview demo script
-├── requirements.txt            # Python dependencies
-└── README.md                   # This file
-```
+Manufacturing Copilot (MCP) is an LLM-driven system designed to investigate and diagnose anomalies in time-series data. Here's a breakdown of the core components:
 
----
+*   **`src/llm_orchestrator.py` (Main Control Loop):** This is the brain of the MCP.
+    *   It takes a natural language query from the user (e.g., "Why did the freezer temperature spike yesterday?").
+    *   It uses an LLM (OpenAI's GPT models) in a loop to plan an investigation.
+    *   At each step, the LLM decides which analytical tool to use from `atomic_tools.py` based on the current evidence and its understanding of the problem.
+    *   It manages the evidence gathered, calculates a confidence score, and decides when to conclude the investigation.
+    *   Finally, it generates a comprehensive report summarizing the findings, root cause, and business impact.
 
-## 🔧 **Technical Architecture**
+*   **`src/tools/atomic_tools.py` (Analytical Toolkit):** This module provides a suite of specialized functions that the orchestrator can call. These tools perform discrete analytical tasks on the data:
+    *   `find_interesting_window`: Identifies the most relevant time window for analysis based on data variance or events.
+    *   `detect_numeric_anomalies`: Spots unusual spikes or drops in numerical sensor data (e.g., temperature).
+    *   `detect_binary_flips`: Detects changes in state for binary sensors (e.g., door open/closed, compressor on/off).
+    *   `test_causality`: Analyzes potential cause-and-effect relationships between different sensor readings, considering time lags.
+    *   `calculate_impact`: Estimates the business impact (e.g., cost of energy waste, product risk) of an identified event.
+    *   `parse_time_range`: Interprets time-related phrases in the user's query to establish an initial analysis window.
+    *   Each tool returns structured JSON, allowing the LLM to interpret the results and plan the next step.
 
-### **LLM-Powered Pipeline**
-1. **Query Parsing** → GPT-4 understands intent and creates analysis plan
-2. **Multi-Step Execution** → Runs analytical tools in intelligent sequence  
-3. **Expert Insights** → GPT-4 analyzes results like a senior engineer
-4. **Professional Output** → Actionable recommendations and visualizations
+*   **`src/glossary.py` (Tag Intelligence):** This module manages information about the PI System tags (the sensor data streams).
+    *   It loads a `tag_glossary.csv` file containing metadata for each tag (description, units, category, normal operating ranges, etc.).
+    *   It uses semantic search (via OpenAI embeddings and a Chroma vector database) to allow the system to find the most relevant tags based on natural language queries or descriptions. This helps the LLM connect user questions to the correct data streams.
 
-### **Core Technologies**
-- **OpenAI GPT-4** → Natural language understanding and expert insights
-- **Chroma Vector DB** → Semantic tag search with embeddings
-- **Pandas + NumPy** → Time-series data processing and analysis
-- **Matplotlib** → Professional visualization generation
-- **Pydantic** → Data validation and structured outputs
-- **Python 3.11+** → Modern async/await patterns and type hints
+*   **`src/config.py` (Configuration Management):** This file centralizes all configuration settings for the application.
+    *   It uses `pydantic-settings` to load API keys, file paths, LLM model names, and operational parameters from environment variables and a `.env` file.
+    *   This ensures a clean separation of configuration from code and supports different environments (e.g., development, production).
 
-### **Manufacturing Domain Features**
-- **PI System Integration** → Industry-standard data format support
-- **Anomaly Detection** → Z-score based spike detection with rolling windows
-- **Correlation Analysis** → Pearson, change, and time-lagged correlations
-- **Data Quality Assessment** → Good/Questionable/Bad quality indicators
-- **Professional Visualizations** → Charts with anomaly highlighting
+*   **`src/tool_models.py` (Data Schemas for Tools):** Defines the expected input arguments for each atomic tool using Pydantic models.
+    *   This ensures that the LLM provides data in the correct format when requesting a tool execution, improving reliability.
+    *   These models are also used to generate JSON schemas for the OpenAI function-calling API.
 
----
+*   **`src/confidence_scorer.py` (Confidence Calculation):** This module implements the logic to calculate the `confidence_score` based on the accumulated evidence. The score reflects how certain the system is about its findings.
 
-## 📈 **Sample Data & Scenarios**
+*   **`src/generate_freezer_data.py` (Demo Data Generation):** A utility script to create realistic mock time-series data for a freezer system.
+    *   It simulates normal operation (temperature cycles, door openings, compressor activity) and injects various anomalies (prolonged door open, compressor failure, sensor malfunctions).
+    *   This allows the MCP to be demonstrated without needing a live connection to a PI System. The output is `data/freezer_system_mock_data.csv`.
 
-The system includes **realistic 7-day freezer operation data** with:
+## 🏃 Running the Demo
 
-### **Data Volume**
-- **50,400+ data points** across 5 PI tags
-- **1-minute resolution** for detailed analysis
-- **Realistic physics simulation** with temperature cycling
+To see the Manufacturing Copilot in action:
 
-### **PI Tags Included**
-- `FREEZER01.TEMP.INTERNAL_C` → Internal freezer temperature
-- `FREEZER01.TEMP.AMBIENT_C` → Ambient room temperature  
-- `FREEZER01.COMPRESSOR.POWER_KW` → Compressor power consumption
-- `FREEZER01.COMPRESSOR.STATUS` → Compressor on/off status
-- `FREEZER01.DOOR.STATUS` → Freezer door open/closed status
+1.  **Ensure Prerequisites:**
+    *   Python 3.11+
+    *   Virtual environment activated.
 
-### **Injected Anomalies**
-- **Prolonged door open** → 18-minute door event causing temperature rise
-- **Compressor failure** → 55-minute compressor outage
-- **Sensor flatline** → 4-hour sensor malfunction
-- **Power fluctuations** → 25-minute power instability
+2.  **Install Dependencies:**
+    ```bash
+    pip install -r requirements.txt
+    ```
 
----
+3.  **Configure Environment:**
+    *   Copy `.env.sample` to `.env`.
+    *   Fill in your `OPENAI_API_KEY` in the `.env` file. Other settings can typically remain as default for the demo.
+    ```bash
+    cp .env.sample .env
+    # Then edit .env to add your API key
+    ```
 
-## 🎯 **Business Value**
+4.  **Generate Demo Data:**
+    This script creates `data/freezer_system_mock_data.csv` which contains simulated freezer sensor data with pre-injected anomalies.
+    ```bash
+    python src/generate_freezer_data.py
+    ```
 
-### **Immediate Benefits**
-- **Faster Problem Resolution** → Minutes instead of hours for root cause analysis
-- **Reduced Expert Dependency** → AI provides senior-level insights 24/7
-- **Prevented Downtime** → Early detection of equipment issues
-- **Optimized Operations** → Data-driven recommendations for efficiency
+5.  **Run Investigations:**
+    You can now ask the MCP to investigate events. The `src/mcp_cli.py` script is the command-line interface. Here are the test cases from `demo.txt`:
 
-### **Competitive Advantages**
-| Traditional Systems | Manufacturing Copilot |
-|-------------------|---------------------|
-| ❌ Shows raw data | ✅ Explains what data means |
-| ❌ Requires expert interpretation | ✅ Provides expert-level analysis |
-| ❌ Static dashboards | ✅ Dynamic insights |
-| ❌ Manual root cause analysis | ✅ Automated problem diagnosis |
-| ❌ High false positive alerts | ✅ Intelligent anomaly detection |
+    *   **Scenario 1: Freezer Temperature Spike**
+        This query targets an event where the freezer door was left open.
+        ```bash
+        python src/mcp_cli.py "What caused the freezer temperature spike around 14:30 yesterday?"
+        ```
+
+    *   **Scenario 2: Compressor Failure**
+        This query targets a simulated compressor failure.
+        ```bash
+        python src/mcp_cli.py "What caused the compressor to stop running around 01:45 UTC on 05-24-2025? Consider data until 03:30 UTC"
+        ```
+        *(Note: The date "05-23-2025" in the query is relative to when the demo data was generated. The `generate_freezer_data.py` script sets up anomalies based on the current date when it's run. The `parse_time_range` tool and the LLM are designed to interpret such date references correctly against the data's actual timestamp range.)*
+
+    Many of the individual Python modules in `src/` (like `glossary.py`, `atomic_tools.py`, `generate_freezer_data.py`) can also be run directly (e.g., `python src/glossary.py`) to see their specific functionalities in action or for debugging.
 
 ---
 
-## 🚀 **Future Roadmap**
+## 🔮 Future Enhancements
 
-### **Phase 1: Current Demo** ✅
-- LLM-powered query interpretation
-- Expert-level insights and recommendations  
-- Professional visualization with anomaly highlighting
+While MCP demonstrates a powerful new paradigm for manufacturing analytics, several areas offer exciting possibilities for future development:
 
-### **Phase 2: Enterprise Integration** 🔄
-- Real-time PI System connectivity
-- Multi-plant analysis capabilities
-- Custom manufacturing domain models
+*   **Advanced Temporal Reasoning:**
+    *   **Contextual Date/Time Disambiguation:** Implement more robust heuristics within `parse_time_range` or a dedicated pre-processing step to better handle ambiguous user queries like "last Tuesday morning" or "during the night shift two days ago," especially when combined with the LLM's natural language understanding. This could involve more sophisticated relative date calculations and awareness of typical operational calendars (shifts, weekends).
+    *   **LLM-Guided Time Window Refinement:** Allow the LLM to more actively guide the refinement of the `investigation_window` beyond just the initial `find_interesting_window` call, perhaps by suggesting shrinking or expanding the window based on intermediate findings, or even shifting it if initial anomalies prove to be red herrings.
 
-### **Phase 3: Predictive Intelligence** 🎯
-- Predictive maintenance recommendations
-- Production optimization suggestions
-- Cost reduction opportunity identification
+*   **Dynamic Anomaly Detection Thresholds:**
+    *   **Adaptive Baselines:** Enhance `detect_numeric_anomalies` to learn or dynamically adjust baseline statistics (mean, std dev) based on longer historical periods or different operational states (e.g., product changeovers, maintenance periods) rather than just a fixed lookback window.
+    *   **Context-Aware Sensitivity:** Allow the `threshold` for anomaly detection to be influenced by tag metadata (e.g., known criticality, typical volatility) or even by the LLM's current hypothesis (e.g., "looking for subtle leading indicators" might use a more sensitive threshold).
 
----
+*   **Orchestrator and Control Flow Hardening:**
+    *   **Smarter Tool Parameterization:** Enable the LLM to suggest more nuanced parameters for tools based on prior results (e.g., suggesting a specific `max_lag_minutes` for `test_causality` if a related event was found at a certain offset).
+    *   **Meta-Reasoning & Backtracking:** Introduce capabilities for the orchestrator to recognize unproductive investigation paths and explicitly backtrack or try alternative hypotheses if confidence stagnates for too long, rather than just relying on the `max_stale_steps` counter. This could involve the LLM reflecting on the evidence log and proposing a strategic shift.
+    *   **Cost-Based Tool Selection:** If multiple tools could provide similar information, allow the LLM to consider estimated token costs (or even a proxy for computational cost) in its selection process, especially for less critical steps.
 
-## 🤝 **Contributing**
+*   **Scalable Vector Database for Tag Glossary:**
+    *   **Persistent & Scalable DB:** Migrate the `TagGlossary` from the in-memory ChromaDB to a more robust, persistent, and scalable vector database solution (e.g., PostgreSQL with pgvector, dedicated cloud-based vector DBs). This would support much larger tag sets and allow for easier updates and management of the tag embeddings.
+    *   **Automated Embedding Updates:** Implement a pipeline to automatically update tag embeddings if their descriptions in the glossary source (e.g., `tag_glossary.csv` or a P&ID system) change.
 
-This project demonstrates the future of AI in manufacturing. Contributions welcome!
+*   **Enhanced Semantic Tag Search & Linking:**
+    *   **Multi-Modal Tag Association:** Extend tag search to potentially incorporate information from P&ID diagrams directly (if OCR/Vision capabilities were added), linking visual context to tag metadata.
+    *   **Relationship Inference:** Develop methods to infer relationships *between tags* (e.g., "Tag A is an input to process controlled by Tag B") directly from documentation or data patterns, and make this information available to the LLM.
+    *   **Synonym & Abbreviation Handling:** Improve the semantic search to be more resilient to common industrial abbreviations or alternative naming conventions for similar types of equipment or measurements.
 
-### **Development Setup**
-```bash
-# Install development dependencies
-pip install -r requirements-dev.txt
-
-# Run tests
-python -m pytest tests/
-
-# Run linting
-ruff check src/
-
-# Format code
-black src/
-```
-
----
-
-## 📄 **License**
-
-MIT License - See [LICENSE](LICENSE) file for details.
-
----
-
-## 🎉 **Ready to Revolutionize Manufacturing?**
-
-This isn't just a demo - it's a glimpse of the future where AI provides expert-level manufacturing insights at scale.
-
-**Get started:**
-```bash
-git clone <repository-url>
-cd manufacturing_mcp
-pip install -r requirements.txt
-echo "OPENAI_API_KEY=your_key_here" > .env
-python src/mcp.py "What's happening with my freezer system?"
-```
-
-**Questions? Issues? Want to see this in your manufacturing environment?**
-
-Let's build the future of intelligent manufacturing together! 🏭🚀 
-
-## 🎬 Demo Modes
-
-### 🖥️ CLI Demo Mode
-For presentations and video recordings:
-```bash
-python src/mcp.py --demo-mode "What caused the temperature problems yesterday?"
-```
-
-This mode adds strategic pauses between analysis phases, allowing you to narrate:
-- GPT-4 query analysis and planning
-- Data loading and tool execution  
-- Expert insight generation
-- Final recommendations
-
-### 🌐 Web Interface Demo
-**Tag Glossary Reviewer** - Human-in-the-loop P&ID processing:
-```bash
-cd hybrid_ocr_gpt/
-python tag_reviewer.py
-```
-
-Visit `http://127.0.0.1:7860` to see how the Manufacturing Copilot could automatically process engineering drawings to build comprehensive tag databases with human expert validation.
-
-## 🚀 Vision & Next Steps 
+*   **Tool & Schema Evolution:**
+    *   **Automated Tool Schema Versioning:** Implement a more automated way to manage and communicate `schema_version` changes for tools to the LLM, perhaps by including versioning directly in the dynamically generated `tool_schemas` if the LLM could reliably use it.
+    *   **User-Defined Tools:** Create a framework where users could more easily define and register their own custom atomic tools with Pydantic schemas, making the MCP more extensible for specific plant needs.
