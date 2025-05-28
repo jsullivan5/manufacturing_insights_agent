@@ -38,23 +38,77 @@ from src.glossary import TagGlossary
 
 _glossary_singleton = TagGlossary()
 
+
 from datetime import timezone
 
-def _ensure_utc_ts(ts: Union[str, datetime, pd.Timestamp, None]):
-    if ts is None:
+def _ensure_utc_ts(ts_input: Union[str, datetime, pd.Timestamp, None]):
+    """Converts various time inputs to a timezone-aware UTC Pandas Timestamp."""
+    if ts_input is None:
         return None
-    ts = pd.to_datetime(ts)
 
-    # >>> If we somehow got two timezone chunks, strip one <<<
-    # e.g.  '2025-05-20T08:05:00+00:00+00:00'  -->  '2025-05-20T08:05:00+00:00'
-    if isinstance(ts, str) and ts.count('+00:00') > 1:
-        ts = ts.replace('+00:00+00:00', '+00:00')
+    processed_input = ts_input
+    if isinstance(ts_input, str):
+        # Sanitize string input first
+        temp_str = ts_input.strip()
+        # Remove repeated +00:00 sequences
+        while '+00:00+00:00' in temp_str:
+            temp_str = temp_str.replace('+00:00+00:00', '+00:00')
+        # Normalize Z+00:00 to just Z (as Z implies UTC)
+        if 'Z+00:00' in temp_str:
+            temp_str = temp_str.replace('Z+00:00', 'Z')
+        # If it ends with +00:00Z, it's likely a Z was intended after conversion
+        if temp_str.endswith('+00:00Z'):
+            temp_str = temp_str[:-1] # Keep the Z, remove the +00:00 before it
+        
+        processed_input = temp_str
+        # After sanitization, if it looks like a Z-terminated string, datetime.fromisoformat is good
+        if processed_input.endswith('Z') and not '+00:00' in processed_input:
+            try:
+                dt_obj = datetime.fromisoformat(processed_input.replace('Z', '+00:00'))
+                # dt_obj is now timezone-aware UTC from fromisoformat
+                return pd.Timestamp(dt_obj) # Convert to Pandas Timestamp
+            except ValueError as e_iso:
+                logger.debug(f"_ensure_utc_ts: fromisoformat failed on sanitized '{processed_input}': {e_iso}. Falling back to pd.to_datetime.")
+                # Fall through to pd.to_datetime if fromisoformat fails
 
-    if ts.tzinfo is None:
-        ts = ts.tz_localize('UTC')
+    try:
+        # For non-strings or strings not handled by direct fromisoformat
+        pd_ts = pd.to_datetime(processed_input) 
+    except Exception as e:
+        original_input_repr = repr(ts_input)
+        # Avoid logging excessively long strings if ts_input was a huge malformed string
+        if len(original_input_repr) > 200:
+            original_input_repr = original_input_repr[:200] + "..."
+        logger.warning(f"_ensure_utc_ts: Failed to parse timestamp with pd.to_datetime. Input: {original_input_repr}. Error: {e}")
+        return None
+
+    # Ensure timezone is UTC
+    if pd_ts.tzinfo is None:
+        try:
+            pd_ts = pd_ts.tz_localize('UTC')
+        except Exception as e_localize:
+            logger.warning(f"_ensure_utc_ts: Failed to localize timestamp {pd_ts} to UTC: {e_localize}")
+            return None # Could not make it UTC aware
     else:
-        ts = ts.tz_convert('UTC')
-    return ts
+        try:
+            pd_ts = pd_ts.tz_convert('UTC')
+        except Exception as e_convert:
+            logger.warning(f"_ensure_utc_ts: Failed to convert timestamp {pd_ts} to UTC: {e_convert}")
+            return None # Could not convert to UTC
+            
+    return pd_ts
+
+# ------------------------------------------------------------------
+def iso_z(dt: datetime | pd.Timestamp | None) -> str | None:
+    """Return ISO‑8601 string with exactly one trailing 'Z' (UTC)."""
+    if dt is None:
+        return None
+    if isinstance(dt, pd.Timestamp):
+        dt = dt.to_pydatetime()
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.isoformat().replace("+00:00", "Z")
+# ------------------------------------------------------------------
 
 def _alert_state(tag_name: str) -> int | None:
     """
@@ -180,7 +234,10 @@ def detect_numeric_anomalies(
         # Return structure consistent with successful empty result
         return {
             'tag': tag, 'value_type': 'numeric',
-            'analysis_window': {'start': parsed_start_time.isoformat(), 'end': parsed_end_time.isoformat()},
+            'analysis_window': {
+                'start': iso_z(parsed_start_time),
+                'end': iso_z(parsed_end_time)
+            },
             'anomalies': [], 'threshold': threshold or 3.0, 'severity_score': 0.0,
             'message': 'No data in the specified analysis window.'
         }
@@ -203,7 +260,11 @@ def detect_numeric_anomalies(
                 baseline_std = baseline_values.std(ddof=0) # Population standard deviation
                 if baseline_std == 0: # Avoid division by zero if baseline is flat
                     baseline_std = 1e-6 # A very small number
-                baseline_info = f"Baseline from {baseline_start_time.isoformat()} to {baseline_end_time.isoformat()}: Mean={baseline_mean:.2f}, Std={baseline_std:.2f}"
+                baseline_info = (
+                    f"Baseline from {iso_z(baseline_start_time)} "
+                    f"to {iso_z(baseline_end_time)}: "
+                    f"Mean={baseline_mean:.2f}, Std={baseline_std:.2f}"
+                )
                 logger.info(f"Calculated baseline for {tag}: Mean={baseline_mean:.2f}, Std={baseline_std:.2f} from {len(baseline_values)} points.")
             else:
                 logger.warning(f"Baseline data for {tag} had no numeric values after dropna.")
@@ -241,7 +302,7 @@ def detect_numeric_anomalies(
 
     for ts, val, z, desc in detected_anomalies_raw:
         anomaly_points.append({
-            'timestamp': ts.isoformat() + 'Z', # Ensure UTC Z notation
+            'timestamp': iso_z(ts),
             'value': float(val),
             'z_score': float(z),
             'deviation': float(abs(val - analysis_mean)) if pd.notna(analysis_mean) and pd.notna(val) else 0.0,
@@ -259,8 +320,8 @@ def detect_numeric_anomalies(
         'tag': tag,
         'value_type': 'numeric',
         'analysis_window': {
-            'start': parsed_start_time.isoformat() + 'Z',
-            'end': parsed_end_time.isoformat() + 'Z'
+            'start': iso_z(parsed_start_time),
+            'end': iso_z(parsed_end_time)
         },
         'baseline_info': baseline_info,
         'anomalies': anomaly_points,
@@ -310,8 +371,8 @@ def detect_binary_flips(
         return {'error': f"Data loading failed for {tag}: {e}"}
 
     analysis_window_out = {
-        'start': parsed_start_time.isoformat() + "Z",
-        'end': parsed_end_time.isoformat() + "Z"
+        'start': iso_z(parsed_start_time),
+        'end': iso_z(parsed_end_time)
     }
 
     if df.empty or len(df) < 2: # Need at least 2 points to detect a flip with diff
@@ -390,7 +451,7 @@ def detect_binary_flips(
                  pass # desc_key already set for "went_high" like events
 
             changes.append({
-                'timestamp': current_ts.isoformat() + 'Z', # Timestamp of the change
+                'timestamp': iso_z(current_ts),
                 'from_state': last_state,
                 'to_state': current_state,
                 'duration_of_previous_state_minutes': round(duration_minutes, 2),
@@ -432,7 +493,7 @@ def detect_binary_flips(
             
         if continuous_duration_minutes >= min_continuous_high_minutes:
             continuous_high_event = {
-                'timestamp': first_point_timestamp.isoformat().replace("+00:00", "Z"), # Changed from 'start_time' to 'timestamp' for consistency
+                'timestamp': iso_z(first_point_timestamp),
                 'event': 'state_high_continuous_from_window_start',
                 'duration_minutes': round(continuous_duration_minutes, 1),
                 'description': f"{tag} was continuously high for {continuous_duration_minutes:.1f} minutes from window start."
@@ -454,19 +515,19 @@ def detect_binary_flips(
         if duration_if_continuously_high >= min_continuous_high_minutes:
             # If continuous_high_event was somehow not set by the previous logic, or to ensure it has this specific structure
             continuous_high_event = {
-                'timestamp': df['Timestamp'].iloc[0].isoformat().replace("+00:00", "Z"), # Time of the first data point
+                'timestamp': iso_z(df['Timestamp'].iloc[0]),
                 'event': 'state_high_continuous_from_window_start_fallback', # Indicate it's from this specific block
                 'duration_minutes': round(duration_if_continuously_high, 1),
                 'description': f"{tag} was continuously high for {duration_if_continuously_high:.1f} minutes from window start (verified by fallback)."
             }
             logger.info(f"Fallback: Set continuous_high_event for {tag} as no flips detected and started high. Event: {continuous_high_event}")
 
-    # Fallback: no flips, started high, stayed high ≥ min_continuous_high_minutes
+        # Fallback: no flips, started high, stayed high ≥ min_continuous_high_minutes
         if not changes and df['state'].iat[0] == alert_on_value:
             duration = (df['Timestamp'].iat[-1] - df['Timestamp'].iat[0]).total_seconds() / 60
             if duration >= min_continuous_high_minutes:
                 continuous_high_event = {
-                    "timestamp": df['Timestamp'].iat[0].isoformat() + "Z",
+                    "timestamp": iso_z(df['Timestamp'].iat[0]),
                     "event": "state_high_continuous_from_window_start",
                     "duration_minutes": round(duration, 1),
                     "description": f"{tag} was high for {duration:.1f} min from window start"
@@ -526,8 +587,8 @@ def detect_change_points(
         return {
             'tag': tag,
             'analysis_window': {
-                'start': start_time.isoformat() if start_time else None,
-                'end': end_time.isoformat() if end_time else None
+                'start': iso_z(start_time) if start_time else None,
+                'end': iso_z(end_time) if end_time else None
             },
             'change_points': [],
             'significance_score': 0.0
@@ -594,7 +655,7 @@ def detect_change_points(
                             direction = 'fluctuation'
                         
                         change_points.append({
-                            'timestamp': start_idx.isoformat(),
+                            'timestamp': iso_z(start_idx),
                             'value_before': float(value_before),
                             'value_after': float(value_after),
                             'magnitude': float(magnitude),
@@ -629,8 +690,8 @@ def detect_change_points(
     return {
         'tag': tag,
         'analysis_window': {
-            'start': start_time.isoformat() if start_time else None,
-            'end': end_time.isoformat() if end_time else None
+            'start': iso_z(start_time) if start_time else None,
+            'end': iso_z(end_time) if end_time else None
         },
         'change_points': change_points,
         'significance_score': significance_score
@@ -683,8 +744,8 @@ def test_causality(
             'cause_tag': cause_tag,
             'effect_tag': effect_tag,
             'analysis_window': {
-                'start': window_start.isoformat() if window_start else None,
-                'end': window_end.isoformat() if window_end else None
+                'start': iso_z(window_start) if window_start else None,
+                'end': iso_z(window_end) if window_end else None
             },
             'best_lag_minutes': 0.0,
             'best_correlation': 0.0,
@@ -809,8 +870,8 @@ def test_causality(
         'cause_tag': cause_tag,
         'effect_tag': effect_tag,
         'analysis_window': {
-            'start': window_start.isoformat() if window_start else None,
-            'end': window_end.isoformat() if window_end else None
+            'start': iso_z(window_start) if window_start else None,
+            'end': iso_z(window_end) if window_end else None
         },
         'best_lag_minutes': float(lag_minutes),
         'best_correlation': float(correlation),
@@ -983,8 +1044,8 @@ def create_event_sequence(
     return {
         'events': events,
         'time_window': {
-            'start': start_time.isoformat() if start_time else None,
-            'end': end_time.isoformat() if end_time else None
+            'start': iso_z(start_time) if start_time else None,
+            'end': iso_z(end_time) if end_time else None
         },
         'primary_tag': primary_tag,
         'related_tags': related_tags
@@ -1043,7 +1104,7 @@ def find_interesting_window(
             return {
                 'primary_tag': primary_tag,
                 'full_range': {'start_time': None, 'end_time': None},
-                'window': {'start_time': fallback_start.isoformat().replace("+00:00", "Z"), 'end_time': fallback_end.isoformat().replace("+00:00", "Z")},
+                'window': {'start_time': iso_z(fallback_start), 'end_time': iso_z(fallback_end)},
                 'strategy': 'error_no_data_range',
                 'significance_score': 0.0 }
         parsed_scan_start_time = parsed_scan_start_time or data_range['start']
@@ -1054,8 +1115,8 @@ def find_interesting_window(
         scan_duration_hours = (parsed_scan_end_time - parsed_scan_start_time).total_seconds() / 3600
         if scan_duration_hours <= window_hours and scan_duration_hours > 0: # Ensure positive duration
             logger.info(f"Scan window for {primary_tag} ({scan_duration_hours:.2f}hrs) is within/equal to desired window_hours ({window_hours}hrs). Using it directly.")
-            start_iso = parsed_scan_start_time.isoformat().replace("+00:00", "Z")
-            end_iso = parsed_scan_end_time.isoformat().replace("+00:00", "Z")
+            start_iso = iso_z(parsed_scan_start_time)
+            end_iso = iso_z(parsed_scan_end_time)
             return {
                 'primary_tag': primary_tag,
                 'full_range': {'start_time': start_iso, 'end_time': end_iso},
@@ -1072,18 +1133,34 @@ def find_interesting_window(
         
     except Exception as e:
         logger.error(f"Error loading data for {primary_tag} in find_interesting_window: {e}")
-        start_iso = parsed_scan_start_time.isoformat().replace("+00:00", "Z") if parsed_scan_start_time else None
-        end_iso = (parsed_scan_start_time + timedelta(hours=window_hours)).isoformat().replace("+00:00", "Z") if parsed_scan_start_time else None
+        start_iso = iso_z(parsed_scan_start_time) if parsed_scan_start_time else None
+        end_iso = iso_z(parsed_scan_start_time + timedelta(hours=window_hours)) if parsed_scan_start_time else None
         if parsed_scan_end_time and (not parsed_scan_start_time or (parsed_scan_start_time + timedelta(hours=window_hours)) > parsed_scan_end_time):
-             end_iso = parsed_scan_end_time.isoformat().replace("+00:00", "Z")
-        return { 'primary_tag': primary_tag, 'full_range': {'start_time': parsed_scan_start_time.isoformat().replace("+00:00", "Z") if parsed_scan_start_time else None, 'end_time': parsed_scan_end_time.isoformat().replace("+00:00", "Z") if parsed_scan_end_time else None}, 'window': {'start_time': start_iso, 'end_time': end_iso}, 'strategy': 'error_data_load', 'significance_score': 0.0}
+            end_iso = iso_z(parsed_scan_end_time)
+        return {
+            'primary_tag': primary_tag,
+            'full_range': {
+                'start_time': iso_z(parsed_scan_start_time) if parsed_scan_start_time else None,
+                'end_time': iso_z(parsed_scan_end_time) if parsed_scan_end_time else None
+            },
+            'window': {'start_time': start_iso, 'end_time': end_iso},
+            'strategy': 'error_data_load', 'significance_score': 0.0
+        }
 
     if df.empty:
-        start_iso = parsed_scan_start_time.isoformat().replace("+00:00", "Z") if parsed_scan_start_time else None
-        end_iso = (parsed_scan_start_time + timedelta(hours=window_hours)).isoformat().replace("+00:00", "Z") if parsed_scan_start_time else None
+        start_iso = iso_z(parsed_scan_start_time) if parsed_scan_start_time else None
+        end_iso = iso_z(parsed_scan_start_time + timedelta(hours=window_hours)) if parsed_scan_start_time else None
         if parsed_scan_end_time and (not parsed_scan_start_time or (parsed_scan_start_time + timedelta(hours=window_hours)) > parsed_scan_end_time):
-            end_iso = parsed_scan_end_time.isoformat().replace("+00:00", "Z")
-        return { 'primary_tag': primary_tag, 'full_range': {'start_time': parsed_scan_start_time.isoformat().replace("+00:00", "Z") if parsed_scan_start_time else None, 'end_time': parsed_scan_end_time.isoformat().replace("+00:00", "Z") if parsed_scan_end_time else None}, 'window': {'start_time': start_iso, 'end_time': end_iso}, 'strategy': 'error_empty_data', 'significance_score': 0.0}
+            end_iso = iso_z(parsed_scan_end_time)
+        return {
+            'primary_tag': primary_tag,
+            'full_range': {
+                'start_time': iso_z(parsed_scan_start_time) if parsed_scan_start_time else None,
+                'end_time': iso_z(parsed_scan_end_time) if parsed_scan_end_time else None
+            },
+            'window': {'start_time': start_iso, 'end_time': end_iso},
+            'strategy': 'error_empty_data', 'significance_score': 0.0
+        }
     
     tag_type = get_value_type(primary_tag)
     effective_scan_start = pd.to_datetime(df['Timestamp'].min()).tz_convert('UTC') if pd.to_datetime(df['Timestamp'].min()).tzinfo else pd.to_datetime(df['Timestamp'].min()).tz_localize('UTC')
@@ -1157,14 +1234,14 @@ def find_interesting_window(
                         significance_score = float(min(0.9, (rolling_var.iloc[max_var_idx] / median_var) / 5.0))
                     else: significance_score = 0.3
 
-    start_iso_out = result_window_start.isoformat().replace("+00:00", "Z")
-    end_iso_out = result_window_end.isoformat().replace("+00:00", "Z")
+    start_iso_out = iso_z(result_window_start)
+    end_iso_out = iso_z(result_window_end)
 
     return {
         'primary_tag': primary_tag,
         'full_range': {
-            'start_time': parsed_scan_start_time.isoformat().replace("+00:00", "Z") if parsed_scan_start_time else None,
-            'end_time': parsed_scan_end_time.isoformat().replace("+00:00", "Z") if parsed_scan_end_time else None
+            'start_time': iso_z(parsed_scan_start_time) if parsed_scan_start_time else None,
+            'end_time': iso_z(parsed_scan_end_time) if parsed_scan_end_time else None
         },
         'window': {'start_time': start_iso_out, 'end_time': end_iso_out},
         'strategy': strategy,

@@ -107,7 +107,7 @@ def score_evidence(
             cont_high  = bool(candidate.get("continuous_high_event"))
 
             if flips_found or cont_high:
-                base_score += 0.10
+                base_score += 0.15
                 if found_window:
                     base_score += 0.05
                     found_binary_flip_in_window = True
@@ -136,7 +136,7 @@ def score_evidence(
 
     # New specific bonuses based on your request
     if found_anomaly_in_window and found_binary_flip_in_window: # Both occurred in the window
-        base_score += 0.15
+        base_score += 0.20
         logger.debug("Applied +0.15 bonus for co-occurring numeric anomaly and binary flip in window.")
     elif found_anomaly_in_window: # Only numeric anomaly in window (and not the combined case above)
         base_score += 0.05

@@ -53,15 +53,29 @@ def display_welcome_message() -> None:
     console.print(welcome_panel)
     console.print("Starting investigation... This may take a few moments.", style="info")
 
-def format_cost(cost: float) -> Text:
-    """Formats cost with color based on value."""
-    if cost > 50:
-        style = "danger"
-    elif cost > 10:
-        style = "warning"
+def format_cost(cost: Any) -> str:
+    """
+    Return a colour-coded dollar amount.
+
+    • Accepts int, float, or a string that looks like a number.
+    • If it can’t be parsed, just return the raw value as text.
+    """
+    from rich.text import Text
+
+    try:
+        cost_val = float(cost)
+    except (TypeError, ValueError):
+        # couldn’t coerce to float -- show it without styling
+        return Text(str(cost))
+
+    if cost_val > 100:
+        style = "bold red"
+    elif cost_val > 50:
+        style = "yellow"
     else:
-        style = "cost"
-    return Text(f"${cost:.2f}", style=style)
+        style = "green"
+
+    return Text(f"${cost_val:,.2f}", style=style)
 
 def display_final_report(report: Dict[str, Any]) -> None:
     """
