@@ -30,6 +30,3 @@ pydantic-settings==2.0.1
 
 # Web Interface for Tag Glossary Demo
 gradio>=4.0.0
-
-# Added from the code block
-# pyyaml==6.0.1 # Removed as it's likely no longer needed after old confidence scorer removal
