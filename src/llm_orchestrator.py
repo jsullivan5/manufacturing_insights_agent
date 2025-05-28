@@ -881,7 +881,7 @@ REMINDER: One tool call per turn. Use start_time/end_time from the established i
                         break # Exit loop, proceed to final report generation at the end of 'run'
                 
                 # Execute the chosen/overridden tool
-                logger.info(f"Executing: {tool_name_to_execute} with args: {tool_args_str_to_execute}")
+                logger.info(f"\n\n🛠️ Executing: {tool_name_to_execute} with args: {tool_args_str_to_execute}\n\n")
                 
                 if tool_name_to_execute == "finish_investigation":
                     try:
