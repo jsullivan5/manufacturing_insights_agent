@@ -104,7 +104,7 @@ Manufacturing Copilot (MCP) is an LLM-driven system designed to investigate and 
 To see the Manufacturing Copilot in action:
 
 1.  **Ensure Prerequisites:**
-    *   Python 3.11+
+    *   Python 3.11.9 (as specified in `.python-version`)
     *   Virtual environment activated.
 
 2.  **Install Dependencies:**
