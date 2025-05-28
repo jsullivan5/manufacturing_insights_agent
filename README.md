@@ -14,6 +14,7 @@ Manufacturing Copilot (MCP) turns raw PI‑System tags and other plant telemetry
 
 ## ❓ Why This Project Exists
 
+
 | Pain Point (Today)        | MCP Solution (Tomorrow)                            |
 |---------------------------|----------------------------------------------------|
 | Slow root‑cause hunts     | Answers in minutes via auto‑planned LLM analysis   |
@@ -22,6 +23,80 @@ Manufacturing Copilot (MCP) turns raw PI‑System tags and other plant telemetry
 | Reactive maintenance      | Predictive alerts before costly failure            |
 
 *Replace/expand rows as needed.*
+
+---
+
+## 🌍 Global Roadmap & Governance (PoC → 50 Plants)
+
+> **Vision:** “One analytics brain, many plants.”  
+> **Approach:** start with a blueprint, then templatize, then federate.
+
+| Roll‑out Wave | Scope              | Key Activities                                                                                                                         | Success KPIs                     |
+|---------------|--------------------|----------------------------------------------------------------------------------------------------------------------------------------|----------------------------------|
+| **0. Pilot**       | 1 plant, freezer cell | • Finalize tag standards<br>• Validate cost‑savings model                                                                            | • >95 % RCA accuracy<br>• \$/event |
+| **1. Foundation**  | 5 flagship plants  | • Deploy **cloud landing zone** (Azure IoT + Data Lake)<br>• Publish **Analytics Template Package** (MLOps, dashboards, KPIs)<br>• Train local “analytics champions” | • Time‑to‑insight ↓ 70 %<br>• Energy/ton ↓ 5 % |
+| **2. Expansion**   | +20 plants         | • Self‑service onboarding wizard<br>• Governance board approves new use‑cases<br>• Quarterly value reviews                             | • Adoption rate↑<br>• Cumulative \$ |
+| **3. Full Scale**  | 50 + plants        | • Auto‑benchmark KPIs across sites<br>• Continuous model‑tuning pipeline<br>• OT/IT cybersecurity audits                              | • Global OEE ↑ 2 pts<br>• \$MM savings |
+
+*Governance: Central CoE owns core models & security; local teams own data quality & actions.*
+
+---
+
+## 📈 OEE / Quality / Reliability Dashboards
+
+```
+┌────────────────────────── OEE Snapshot (Yesterday) ──────────────────────────┐
+│ Availability  Performance  Quality   OEE                                    │
+│     91.2 %        85.4 %     99.0 %   77.0 %   ▼ ‑2.1 pts vs. last week      │
+└──────────────────────────────────────────────────────────────────────────────┘
+```
+
+> *Standardised KPI widgets (OEE, MTBF, MTTR, FPY) auto‑generated from PI/MES data and published to Power BI/Tableau.*  
+> *Replace the ASCII block with a real screenshot 🔲 when available.*
+
+---
+
+## 🔄 Change‑Management & Capability Building
+
+1. **Operator Tier** – 2‑hour hands‑on: *“Ask Copilot anything”*, alert handling.  
+2. **Engineer Tier** – 1‑day deep dive: tag hygiene, custom tools, MLOps basics.  
+3. **Leadership Tier** – exec dashboard & ROI clinic: value heat‑maps, budget alignment.
+
+> **Enablement cadence:** monthly office hours + Teams community of practice.
+
+---
+
+## 💰 Quantified ROI — Quick Calculator
+
+```python
+# roi_calculator.py  (demo)
+duration_min           = 20      # door-open minutes
+energy_kwh_per_min     = 1.2
+energy_cost_per_kwh    = 0.12
+spoilage_risk_per_min  = 15
+
+energy_cost   = duration_min * energy_kwh_per_min * energy_cost_per_kwh
+spoilage_cost = duration_min * spoilage_risk_per_min
+
+print(f"Energy cost:   ${energy_cost:,.0f}")
+print(f"Spoilage risk: ${spoilage_cost:,.0f}")
+```
+
+> **Example:** a 20‑minute door‑open event costs **\$120 in energy** and exposes **\$300 in spoilage risk**—flagged instantly by Copilot.
+
+---
+
+## ☁️ Cloud & Security Posture
+
+* **Architecture:** PI → **Edge Gateway** → Azure IoT Hub → ADLS Gen2 → Synapse/Databricks → Copilot API  
+* **OT/IT Segregation:** one‑way DMZ data diode, MQTT over TLS, *no inbound traffic to plant floor*.  
+* **Access Control:** RBAC via Entra ID; row‑level security on multi‑plant datasets.  
+* **LLM Security:** Optionally deploy the Copilot’s large‑language‑model endpoint on **Azure OpenAI Service** to keep prompts & telemetry within Microsoft’s enterprise compliance boundary (no data leaves the tenant).
+* **Compliance:** ISA‑95 tiers respected; SOC‑2 / ISO 27001 controls mapped.
+
+> *Deploy once, then auto‑provision resource groups per plant with Terraform.*
+
+---
 
 ---
 
