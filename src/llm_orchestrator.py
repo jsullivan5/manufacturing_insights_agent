@@ -47,6 +47,7 @@ from src.tool_models import (
 )
 from src.confidence_scorer import score_evidence
 from src.tools.build_report import build_event_timeline, build_business_impact
+from src.logger import setup_logging
 
 logger = logging.getLogger(__name__)
 
@@ -130,7 +131,13 @@ REMINDER: One tool call per turn. Use start_time/end_time from the established i
 
     def __init__(self, settings: Settings):
         self.settings: Settings = settings
-        logger.setLevel(self.settings.log_level)
+        
+        # Setup logging as early as possible
+        # You can customize levels and formatters here if needed,
+        # or rely on defaults in setup_logging / environment variables.
+        setup_logging(default_level=self.settings.log_level.upper()) 
+
+        logger.setLevel(self.settings.log_level.upper()) # Ensure orchestrator's own logger respects the level
         
         # Rely on Pydantic to load the prefixed env var into settings.openai_api_key
         if not self.settings.openai_api_key:
@@ -717,7 +724,7 @@ REMINDER: One tool call per turn. Use start_time/end_time from the established i
         self._reset_run_state()
         self.current_run_id = str(uuid.uuid4())
         self.original_query = query # Store for forced parse_time_range
-        self.today_iso = datetime.now(timezone.utc).strftime("%Y-%m-%d") # Added today_iso
+        self.today_iso = datetime.now(timezone.utc).isoformat() # Store current UTC timestamp
         logger.info(f"Run ID: {self.current_run_id} Query: '{query}' Today: {self.today_iso}")
         final_status_for_report = "completed_max_steps" # Default unless loop breaks for other reasons
 
