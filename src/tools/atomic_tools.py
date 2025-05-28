@@ -1302,53 +1302,73 @@ def parse_time_range(start_time: Optional[str] = None, end_time: Optional[str] =
         logger.info(f"Attempting to parse time from query: '{query}' using dateparser relative to {now_utc.isoformat()})")
         try:
             import dateparser.search
-            # Settings for dateparser
-            # PREFER_DATES_FROM: 'past' helps with "yesterday", "last week"
-            # TIMEZONE: 'UTC' ensures parsed datetimes are in UTC if not specified
-            # RETURN_AS_TIMEZONE_AWARE: Ensures datetime objects have tzinfo
-            # NORMALIZE: True can help with some varied inputs
             dp_settings = {
                 'PREFER_DATES_FROM': 'past',
                 'TIMEZONE': 'UTC',
                 'RETURN_AS_TIMEZONE_AWARE': True,
-                'RELATIVE_BASE': now_utc # Critically important for relative dates
+                'RELATIVE_BASE': now_utc
             }
-            
             found_dates = dateparser.search.search_dates(query, languages=['en'], settings=dp_settings)
-            
+
             if found_dates:
                 logger.info(f"Dateparser found: {found_dates}")
-                # Logic to handle found_dates: prioritize, set default windows
-                # For simplicity, let's take the first one found as a reference point.
-                # A more complex implementation could look for pairs or specific keywords.
-                
-                ref_text, ref_dt = found_dates[0]
-                ref_dt = _safe_year(ref_dt, now_utc) # Ensure year is correct
 
-                # Default windowing logic based on what dateparser found
-                if "afternoon" in ref_text.lower():
-                    processed_start_dt = ref_dt.replace(hour=12, minute=0, second=0, microsecond=0)
-                    processed_end_dt = ref_dt.replace(hour=17, minute=0, second=0, microsecond=0)
-                elif "morning" in ref_text.lower():
-                    processed_start_dt = ref_dt.replace(hour=8, minute=0, second=0, microsecond=0)
-                    processed_end_dt = ref_dt.replace(hour=12, minute=0, second=0, microsecond=0)
-                elif "evening" in ref_text.lower() or "night" in ref_text.lower():
-                    processed_start_dt = ref_dt.replace(hour=18, minute=0, second=0, microsecond=0)
-                    processed_end_dt = ref_dt.replace(hour=23, minute=59, second=59, microsecond=0)
-                elif "around" in ref_text.lower() or (ref_dt.hour != 0 or ref_dt.minute != 0 or ref_dt.second != 0):
-                    # A specific time was mentioned, create a +/- 30min window or similar
+                # --- Build and clean the list of datetimes --------------------
+                parsed_pairs: list[tuple[str, datetime]] = []
+                for txt, dt in found_dates:
+                    parsed_pairs.append((txt.strip().lower(), _safe_year(dt, now_utc)))
+
+                # Sort chronologically by the datetime element
+                parsed_pairs.sort(key=lambda p: p[1])
+                parsed_dts = [p[1] for p in parsed_pairs]
+
+                # ---------------------------------------------------------------
+                # Heuristic: if we captured exactly two timestamps and the
+                #   second piece of text looks like *time‑only* (e.g. "03:30 UTC")
+                #   then inherit the Y‑M‑D from the first timestamp so that a
+                #   window such as
+                #     "02:15 UTC on 05‑24‑2025 … until 03:30 UTC"
+                #   resolves to the SAME calendar day instead of jumping to now().
+                # ---------------------------------------------------------------
+                if len(parsed_pairs) == 2:
+                    first_txt, first_dt = parsed_pairs[0]
+                    second_txt, second_dt = parsed_pairs[1]
+
+                    import re
+                    # crude check: second text has no explicit date component
+                    looks_time_only = not re.search(r"\d{4}", second_txt)  # no 4‑digit year
+                    looks_time_only &= not re.search(r"\b\d{1,2}[/-]\d{1,2}\b", second_txt)  # no m/d or d-m
+                    if looks_time_only:
+                        second_dt = second_dt.replace(
+                            year=first_dt.year,
+                            month=first_dt.month,
+                            day=first_dt.day,
+                        )
+                        parsed_pairs[1] = (second_txt, second_dt)
+                        parsed_dts[1] = second_dt
+
+                # 2️⃣  If two or more distinct times were detected, treat the earliest as start and latest as end
+                if len(parsed_dts) >= 2:
+                    processed_start_dt = parsed_dts[0]
+                    processed_end_dt   = parsed_dts[-1]
+
+                # 3️⃣  Exactly one timestamp?  Keep previous heuristics, but simplify:
+                elif len(parsed_dts) == 1:
+                    ref_dt = parsed_dts[0]
                     processed_start_dt = ref_dt - timedelta(minutes=30)
-                    processed_end_dt = ref_dt + timedelta(minutes=30)
-                else: # Only a date, no specific time of day implies full day or common business hours
-                    processed_start_dt = ref_dt.replace(hour=9, minute=0, second=0, microsecond=0)
-                    processed_end_dt = ref_dt.replace(hour=17, minute=0, second=0, microsecond=0)
-                
-                # If only one of start/end was provided by LLM, and query parsing yielded a window,
-                # prefer the query-parsed window for now. This logic can be refined.
-                if start_time and not end_time and processed_start_dt and processed_end_dt: # LLM gave start, query gave window
-                    logger.info("LLM gave start_time, query parsing yielded a window. Using query-parsed window for consistency.")
-                elif end_time and not start_time and processed_start_dt and processed_end_dt: # LLM gave end_time, query gave window
-                     logger.info("LLM gave end_time, query parsing yielded a window. Using query-parsed window for consistency.")
+                    processed_end_dt   = ref_dt + timedelta(minutes=30)
+
+                # 4️⃣  Look for explicit window sizes like “90‑minute window” or “2 hour window”
+                import re
+                m = re.search(r'(\d+)\s*(minutes?|mins?|hours?|hrs?)', query, flags=re.I)
+                if m:
+                    qty = int(m.group(1))
+                    unit = m.group(2).lower()
+                    window_td = timedelta(minutes=qty) if 'min' in unit else timedelta(hours=qty)
+                    if processed_start_dt and not processed_end_dt:
+                        processed_end_dt = processed_start_dt + window_td
+                    elif processed_end_dt and not processed_start_dt:
+                        processed_start_dt = processed_end_dt - window_td
 
             else:
                 logger.info("Dateparser found no specific dates in query. Falling back to default.")
