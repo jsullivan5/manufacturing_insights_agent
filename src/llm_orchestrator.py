@@ -100,6 +100,8 @@ STATE: I will give you a JSON blob each turn containing:
   - window: {start, end} if already discovered
 GOAL: Raise confidence to >=0.9 by discovering a causal chain.
 
+-INITIAL STEP:
+-- If the query contains temporal language (e.g., "yesterday afternoon", "on 24 May at 14:30", "last weekend"), first call parse_time_range. Provide its output (start_time, end_time) as the initial investigation_window. Both start_time and end_time are optional in parse_time_range; if the LLM cannot determine a precise one, it can omit it or provide a sensible default. Output must be ISO-8601 UTC.
 
 STRATEGY:
   1. If no window yet (either from parse_time_range or a previous find_interesting_window call) -> call find_interesting_window on the most relevant numeric tag. If a window was determined by parse_time_range, use its start_time and end_time as arguments for the *search range* within find_interesting_window, if the tool supports it, to narrow its focus.
@@ -818,44 +820,47 @@ REMINDER: One tool call per turn. Use start_time/end_time from the established i
                 llm_call_content: Optional[str] = None # Content from assistant message if any
                 llm_function_call_object: Optional[Any] = None # Function call object from assistant
 
-                # Initial step: guide or force parse_time_range
+                # --------------------------------------------------------------
+                # Initial step MUST be parse_time_range so we anchor the window
+                # --------------------------------------------------------------
                 if self.current_step_count == 1 and not self.investigation_window:
                     try:
                         llm_msg_first_step = self._ask_gpt_for_next_action(query)
                     except Exception as api_err:
-                        logger.error(f"API error on first step: {api_err}. Investigation halting.")
+                        logger.error("API error on first step: %s. Investigation halting.", api_err)
                         final_status_for_report = "halted_api_error"
                         return self._generate_final_report(query, final_status_for_report, error_details=str(api_err))
 
                     llm_call_content = llm_msg_first_step.content
                     llm_function_call_object = llm_msg_first_step.function_call
 
-                    if llm_function_call_object:
-                        tool_name_to_execute = llm_function_call_object.name
-                        tool_args_str_to_execute = llm_function_call_object.arguments or "{}"
+                    # 1️⃣ If the LLM did NOT call parse_time_range, we forcibly override.
+                    if not llm_function_call_object or llm_function_call_object.name != "parse_time_range":
+                        logger.info("Forcing initial tool to 'parse_time_range' (LLM suggested %s).", 
+                                    llm_function_call_object.name if llm_function_call_object else "none")
+                        tool_name_to_execute = "parse_time_range"
+                        tool_args_str_to_execute = json.dumps({"query": self.original_query})
+                        # Record the override in evidence
+                        self.evidence.append({
+                            "role": "assistant",
+                            "content": "Orchestrator override: parse_time_range must run first.",
+                            "function_call": {"name": tool_name_to_execute, "arguments": tool_args_str_to_execute},
+                        })
 
-                        # If the first call **is** parse_time_range but the LLM provided no args,
-                        # inject the original query so the tool has something to parse.
-                        if tool_name_to_execute == "parse_time_range" and tool_args_str_to_execute.strip() in ("{}", ""):
+                    # 2️⃣ LLM *did* choose parse_time_range but with empty args – inject query.
+                    else:
+                        tool_name_to_execute = "parse_time_range"
+                        tool_args_str_to_execute = llm_function_call_object.arguments or "{}"
+                        if tool_args_str_to_execute.strip() in ("{}", ""):
                             logger.info("LLM called parse_time_range with empty args. Injecting original query.")
                             tool_args_str_to_execute = json.dumps({"query": self.original_query})
 
-                        # Record assistant intent in evidence
+                        # Record assistant intent
                         self.evidence.append({
                             "role": "assistant",
                             "content": llm_call_content,
                             "function_call": llm_function_call_object,
                         })
-                    else:
-                        logger.warning(
-                            f"LLM did not make a function call on first step. Response: {llm_call_content}"
-                        )
-                        final_status_for_report = "halted_no_initial_call"
-                        return self._generate_final_report(
-                            query,
-                            final_status_for_report,
-                            llm_direct_response=llm_call_content,
-                        )
                 else: # Subsequent steps
                     try: 
                         llm_msg_subsequent_step = self._ask_gpt_for_next_action(query)
