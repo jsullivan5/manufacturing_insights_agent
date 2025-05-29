@@ -9,6 +9,8 @@ import argparse
 import json
 import sys
 import os
+import time
+from pathlib import Path
 from typing import Dict, Any, List
 
 # Ensure the src directory is in the Python path
@@ -58,14 +60,14 @@ def format_cost(cost: Any) -> str:
     Return a colour-coded dollar amount.
 
     • Accepts int, float, or a string that looks like a number.
-    • If it can’t be parsed, just return the raw value as text.
+    • If it can't be parsed, just return the raw value as text.
     """
     from rich.text import Text
 
     try:
         cost_val = float(cost)
     except (TypeError, ValueError):
-        # couldn’t coerce to float -- show it without styling
+        # couldn't coerce to float -- show it without styling
         return Text(str(cost))
 
     if cost_val > 100:
@@ -177,6 +179,7 @@ def display_final_report(report: Dict[str, Any]) -> None:
     console.rule(style="green")
 
 def main():
+    start_time = time.monotonic()
     parser = argparse.ArgumentParser(
         description="Manufacturing Copilot (MCP) - Root Cause Analysis CLI",
         formatter_class=argparse.RawTextHelpFormatter
@@ -258,12 +261,13 @@ def main():
         if getattr(orchestrator, "generated_artifacts", None):
             console.print("\n[bold cyan]📈 Generated Charts & Artifacts[/bold cyan]")
             for art_path in orchestrator.generated_artifacts:
-                rel = os.path.relpath(art_path)        # shorter than full path
-                label = os.path.basename(art_path)     # just the filename
-                # Use file:// protocol with absolute path for clickable links
+                # Create a robust file URI using pathlib
+                file_uri = Path(art_path).resolve().as_uri()
+                label = os.path.basename(art_path) # Keep using os.path.basename for the label
+                
+                # Print only the clickable link
                 console.print(
-                    f"• [link=file://{art_path}]{label}[/link]    "
-                    f"([dim]{rel}[/dim])"
+                    f"• [link={file_uri}]{label}[/link]"
                 )
 
     except ValueError as ve:
@@ -274,6 +278,16 @@ def main():
         import traceback
         console.print(traceback.format_exc(), style="dim white")
         sys.exit(1)
+    finally:
+        end_time = time.monotonic()
+        duration = end_time - start_time
+        duration_panel = Panel(
+            Text(f"Total execution time: {duration:.2f} seconds", justify="center", style="bold cyan"),
+            title="[bold green]⏱️ Script Execution Time[/bold green]",
+            border_style="panel_border",
+            padding=(1, 2)
+        )
+        console.print(duration_panel)
 
 if __name__ == "__main__":
     main()
