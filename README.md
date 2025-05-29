@@ -4,8 +4,6 @@
 
 > **AI‑powered root‑cause analysis, anomaly detection, and predictive maintenance for industrial time‑series data—delivered through natural‑language conversations.**
 
----
-
 ## 🎯 Objective
 
 Manufacturing Copilot (MCP) turns raw PI‑System tags and other plant telemetry into expert‑level insights in seconds. It employs a sophisticated AI agent that iteratively investigates data anomalies. Given a natural language query (e.g., "Why did the freezer temperature spike?"), the MCP's orchestrator uses an LLM to formulate hypotheses, select appropriate analytical tools from a specialized toolkit, interpret their outputs (which are always structured JSON), and refine its understanding. This cycle continues, building an evidence chain and a confidence score, until a root cause is identified with high certainty or a maximum number of steps is reached. The agent then delivers a clear, actionable report. This process slashes unplanned downtime, breaks down knowledge silos, and frees engineers from hours of manual dashboard forensics.
@@ -21,8 +19,6 @@ Manufacturing Copilot (MCP) turns raw PI‑System tags and other plant telemetry
 | Alert fatigue             | Context‑aware correlation & prioritised alerts     |
 | Knowledge silos           | Embedded domain reasoning for every operator       |
 | Reactive maintenance      | Predictive alerts before costly failure            |
-
-*Replace/expand rows as needed.*
 
 ---
 
