@@ -1,6 +1,6 @@
 # 🏭 Manufacturing Copilot (MCP)
 
-**▶️ [Watch the Demo Video](https://drive.google.com/file/d/1IKtrB1PaNzqVZhUWzbaJhTUO0GjwGtrF/view?usp=sharing)**
+**▶️ [Watch the Demo Video](https://www.loom.com/share/763fc83c349a47ad8e3c54f2bea603a2?sid=8b1adfc4-0281-4890-b0e5-ec4d63c52c2e)**
 
 > **AI‑powered root‑cause analysis, anomaly detection, and predictive maintenance for industrial time‑series data—delivered through natural‑language conversations.**
 
